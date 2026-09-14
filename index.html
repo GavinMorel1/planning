@@ -33,5 +33,22 @@
     <div id="app-splash"><img src="paradiem-logo-dark.png" alt="Paradiem" /></div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // If the app has not mounted within 8 seconds, say so instead of pulsing forever.
+      (function () {
+        setTimeout(function () {
+          var splash = document.getElementById('app-splash');
+          var root = document.getElementById('root');
+          if (!splash || (root && root.childNodes.length)) return;
+          var mod = document.querySelector('script[type=module]');
+          var src = mod ? mod.getAttribute('src') : '(none)';
+          splash.innerHTML = '<div style="max-width:440px;text-align:center;font-family:DM Sans,sans-serif;color:#FAF7F2;padding:24px">'
+            + '<div style="font-size:18px;font-weight:700;margin-bottom:8px">The app did not load</div>'
+            + '<div style="font-size:13px;color:#B8B4AC;line-height:1.6;margin-bottom:18px">Your browser may be holding an old copy of this page. Press <b>Ctrl+Shift+R</b> (Windows) or <b>Cmd+Shift+R</b> (Mac), or open the address in a private window.</div>'
+            + '<button onclick="location.reload(true)" style="padding:10px 22px;border-radius:10px;border:1px solid #C9A84C;background:#C9A84C;color:#171738;font-weight:700;cursor:pointer;font-family:inherit">Reload</button>'
+            + '<div style="font-size:10px;color:#8B7355;margin-top:18px;word-break:break-all">script: ' + src + '</div></div>';
+        }, 8000);
+      })();
+    </script>
   </body>
 </html>
