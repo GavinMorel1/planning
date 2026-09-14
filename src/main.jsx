@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { AuthProvider, AuthGate } from './lib/auth'
 import { StoreProvider } from './lib/store'
+import { PasscodeGate } from './lib/passcode'
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -24,6 +25,7 @@ class ErrorBoundary extends React.Component {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
+    <PasscodeGate>
     <AuthProvider>
       <AuthGate>
         <StoreProvider>
@@ -33,6 +35,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </StoreProvider>
       </AuthGate>
     </AuthProvider>
+    </PasscodeGate>
   </React.StrictMode>,
 )
 

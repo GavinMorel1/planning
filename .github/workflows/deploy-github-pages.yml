@@ -1,8 +1,11 @@
-# Optional: deploy to GitHub Pages instead of Cloudflare Pages. GitHub Pages on a PRIVATE repo
-# needs a paid GitHub plan. Run it manually from the Actions tab once Pages is enabled
-# (Settings → Pages → Source: GitHub Actions). Cloudflare Pages needs no workflow at all.
+# Deploys the app to GitHub Pages on every push. Enable once in the repo:
+#   Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# The Supabase URL and anon key are publishable values (row-level security protects the data);
+# repository secrets with the same names override them. VITE_PROXY_URL (Claude) is optional.
 name: Deploy to GitHub Pages
 on:
+  push:
+    branches: [main, claude/upbeat-babbage-stmr4v]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,8 +25,8 @@ jobs:
       - run: npm run build
         env:
           BASE_PATH: /planning/
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://khpddtxiyacrivlliwdw.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_yuJyQbBhncz0QdwfwokERQ_vIx27mJS' }}
           VITE_PROXY_URL: ${{ secrets.VITE_PROXY_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

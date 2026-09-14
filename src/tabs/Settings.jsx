@@ -5,6 +5,7 @@ import { CLAUDE_ENABLED, MODEL } from '../lib/claude'
 import { Card, Eyebrow, Title, SubTabs, Btn, Input, Field, Grid, Row, Note, TextArea, Pill, Confirm } from '../components/ui'
 import { DEFAULT_SETTINGS } from '../data/defaults'
 import { download } from '../lib/util'
+import { lockApp } from '../lib/passcode'
 
 export default function Settings({ C, isDesktop, themeName, setThemeName }) {
   const { settings, updateSettings, mode, exportAll, importAll, families } = useStore()
@@ -105,7 +106,8 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
           <Card C={C}>
             <Eyebrow C={C}>Account & appearance</Eyebrow>
             <div style={{ fontSize: 12.5, color: C.t3, marginBottom: 10 }}>{localMode ? 'Local mode: no login, data lives in this browser only.' : `Signed in as ${email}`}</div>
-            <Row>{['dark', 'light'].map((t) => <Btn key={t} C={C} small primary={themeName === t} onClick={() => setThemeName(t)}>{t === 'dark' ? 'Dark' : 'Light'}</Btn>)}{!localMode && <Btn C={C} small ghost onClick={signOut}>Sign out</Btn>}</Row>
+            <Row>{['dark', 'light'].map((t) => <Btn key={t} C={C} small primary={themeName === t} onClick={() => setThemeName(t)}>{t === 'dark' ? 'Dark' : 'Light'}</Btn>)}{!localMode && <Btn C={C} small ghost onClick={signOut}>Sign out</Btn>}<Btn C={C} small danger onClick={lockApp}>Lock app</Btn></Row>
+            <div style={{ fontSize: 11, color: C.t4, marginTop: 8 }}>Lock app forgets the team passcode on this device.</div>
           </Card>
           <Card C={C}>
             <Eyebrow C={C}>Integrations</Eyebrow>

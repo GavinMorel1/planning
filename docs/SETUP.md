@@ -1,11 +1,13 @@
 # Setting up Paradiem Planning
 
-Three services, all with free tiers. Do them in this order. Total time about 45 minutes.
-You need: a paradiem.org email, a credit card only for Anthropic (pay-as-you-go).
+## Status (14 Sep 2026)
 
-The app works with **none** of this configured: run it locally and it stores data in the
-browser ("Local mode"). Configure Supabase to share data across the team, Claude to read
-documents and draft analyses, Cloudflare Pages to host it.
+- **Supabase: DONE.** Project `khpddtxiyacrivlliwdw` holds the tables, security rules, activity log and the private `documents` bucket (applied as three migrations; `supabase/schema.sql` is the reference copy). The URL and publishable key are baked into the GitHub Pages workflow.
+- **Passcode: DONE.** The site asks for the team passcode before anything loads, then for a paradiem.org login. Settings → System → Lock app forgets the passcode on a device. To change the passcode, replace the SHA-256 in `src/lib/passcode.jsx` (`printf 'newcode' | sha256sum`).
+- **Hosting: GitHub Pages** via `.github/workflows/deploy-github-pages.yml` — see section 3b. Cloudflare Pages remains an option (section 3).
+- **Claude: NOT YET.** Needs section 2.
+
+Three services, all with free tiers. You need: a paradiem.org email, a credit card only for Anthropic (pay-as-you-go).
 
 ---
 
@@ -46,9 +48,17 @@ documents and draft analyses, Cloudflare Pages to host it.
 
 Every push to `main` redeploys automatically.
 
+## 3b. GitHub Pages — hosting (current setup, 5 min)
+
+1. On github.com open the repository → **Settings → Pages**. Under *Build and deployment* set **Source: GitHub Actions**. (A private repository needs GitHub Pro or Team for Pages; if GitHub asks you to upgrade, either upgrade or use Cloudflare Pages in section 3.)
+2. Open the **Actions** tab. The "Deploy to GitHub Pages" workflow runs on every push to `main` or `claude/upbeat-babbage-stmr4v`. If the first run failed because Pages was not enabled yet, open it and click **Re-run all jobs**.
+3. The site is at **https://gavinmorel1.github.io/planning/**.
+4. In Supabase: **Authentication → URL Configuration** → Site URL `https://gavinmorel1.github.io/planning/` and add the same to Redirect URLs, so password-reset emails come back to the app.
+5. Optional repository secrets (Settings → Secrets and variables → Actions): `VITE_PROXY_URL` once the Worker from section 2 exists. `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` only if you ever move to a different Supabase project.
+
 ## 4. First sign-in
 
-Open the app, click **Create account** with your paradiem.org email, confirm the email, sign in. Everyone on the team does the same; everyone has the same access.
+Open the app, enter the team passcode, click **Create account** with your paradiem.org email, confirm the email, sign in. Everyone on the team does the same; everyone has the same access.
 
 Then in **Settings** check the quarterly performance numbers, the tax constants, the fee schedule, and the team roster. They ship with the values from the September 2026 decks.
 

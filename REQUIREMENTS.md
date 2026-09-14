@@ -76,7 +76,8 @@ against the family's own goals, intentions and 100-Year Vision.
 | 18 | Fees | Per fee schedule (see below). Computed from net worth, planner may override, show "confirm with Compliance". |
 | 19 | Team roster | Unchanged except Chris Callahan = Director of Relationship Management. Matthew Sullivan = Associate Advisor I. Domnic Davenport = Investment Planning Associate. |
 | 21 | Case studies | Tool suggests by archetype; planner picks. |
-| 22 | Deployment | Gavin sets up Supabase + Cloudflare himself following `docs/SETUP.md`. |
+| 22 | Deployment | Supabase project `khpddtxiyacrivlliwdw` (schema applied 14 Sep 2026). Hosting on GitHub Pages from the repo workflow. Cloudflare Worker still needed for Claude. |
+| 27 | Access | Shared team passcode gate before login (SHA-256 in `src/lib/passcode.jsx`), then paradiem.org email login. |
 | 23 | Claude API | Paradiem will add an Anthropic API key (held in the Cloudflare Worker). |
 | 24 | Fonts | App uses the invest dashboard fonts (DM Sans). Exported decks use Georgia + Calibri. |
 | 25 | Duplicate slides | Under-5M p7 vs p8 and p20 vs p21 are alternatives; planner picks one of each per deck. |
