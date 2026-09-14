@@ -1,0 +1,37 @@
+# Optional: deploy to GitHub Pages instead of Cloudflare Pages. GitHub Pages on a PRIVATE repo
+# needs a paid GitHub plan. Run it manually from the Actions tab once Pages is enabled
+# (Settings → Pages → Source: GitHub Actions). Cloudflare Pages needs no workflow at all.
+name: Deploy to GitHub Pages
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 'lts/*' }
+      - run: npm install
+      - run: npm run build
+        env:
+          BASE_PATH: /planning/
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PROXY_URL: ${{ secrets.VITE_PROXY_URL }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: ./dist }
+  deploy:
+    environment: { name: github-pages, url: ${{ steps.deployment.outputs.page_url }} }
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

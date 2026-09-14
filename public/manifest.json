@@ -1,0 +1,13 @@
+{
+  "name": "Paradiem Planning",
+  "short_name": "Planning",
+  "description": "Paradiem planning team workspace — Family Capital Assessments, Gap Analyses, estate flow charts",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0B0820",
+  "theme_color": "#0B0820",
+  "icons": [
+    { "src": "icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

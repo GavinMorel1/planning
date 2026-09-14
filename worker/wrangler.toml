@@ -1,0 +1,11 @@
+name = "planning-api-proxy"
+main = "index.js"
+compatibility_date = "2026-01-01"
+
+# Comma-separated list of origins allowed to call the proxy. Add your Cloudflare Pages URL
+# (and a custom domain if you add one). Add http://localhost:5173 only while developing.
+[vars]
+ALLOWED_ORIGINS = "https://paradiem-planning.pages.dev"
+
+# Secrets are NOT set here. Run once:
+#   npx wrangler secret put ANTHROPIC_KEY
