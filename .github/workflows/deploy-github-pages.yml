@@ -20,7 +20,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 'lts/*' }
+        with:
+          node-version: 'lts/*'
       - run: npm install
       - run: npm run build
         env:
@@ -30,9 +31,12 @@ jobs:
           VITE_PROXY_URL: ${{ secrets.VITE_PROXY_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
-        with: { path: ./dist }
+        with:
+          path: ./dist
   deploy:
-    environment: { name: github-pages, url: ${{ steps.deployment.outputs.page_url }} }
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
     steps:
