@@ -88,9 +88,11 @@ function Login() {
       const em = email.trim().toLowerCase()
       if (!isParadiemEmail(em)) { setError('Use your paradiem.org email.'); setBusy(false); return }
       if (mode === 'signup') {
-        const { error: suErr } = await supabase.auth.signUp({ email: em, password })
+        const { data, error: suErr } = await supabase.auth.signUp({ email: em, password })
         if (suErr) throw suErr
-        setInfo('Account created. If confirmation is on, check your inbox, then sign in.')
+        if (data?.session) return // confirmation is off: signed in immediately, the gate takes over
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) { setError('That account already exists. Switch to Sign in.'); return }
+        setInfo('Account created. Check your inbox for the confirmation link, then sign in.')
         setMode('signin')
       } else {
         const { error: siErr } = await supabase.auth.signInWithPassword({ email: em, password })
