@@ -3,10 +3,20 @@ import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
 import { CLAUDE_ENABLED, MODEL } from '../lib/claude'
 import { Card, Eyebrow, Title, SubTabs, Btn, Input, Field, Grid, Row, Note, TextArea, Pill, Confirm } from '../components/ui'
-import { DEFAULT_SETTINGS } from '../data/defaults'
+import { DEFAULT_SETTINGS, DEFAULT_ROSTER } from '../data/defaults'
 import { download } from '../lib/util'
 import { lockApp } from '../lib/passcode'
 
+const rosterPhoto = (p) => { const src = p.photo || DEFAULT_ROSTER.find((d) => d.name === p.name)?.photo; return src ? (src.startsWith('data:') ? src : `${import.meta.env.BASE_URL || '/'}${src}`) : '' }
+// Resize an uploaded headshot to a small PNG data URL (settings are stored as one JSON document)
+async function shrinkImage(file, maxH) {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url })
+    const k = Math.min(1, maxH / img.naturalHeight); const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k)
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); return c.toDataURL('image/png')
+  } finally { URL.revokeObjectURL(url) }
+}
 export default function Settings({ C, isDesktop, themeName, setThemeName }) {
   const { settings, updateSettings, mode, exportAll, importAll, families } = useStore()
   const { email, signOut, localMode } = useAuth()
@@ -74,11 +84,13 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
       {sub === 'roster' && (
         <Card C={C}>
           <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}><Eyebrow C={C} style={{ marginBottom: 0 }}>Your Team & Advocates</Eyebrow><Btn C={C} small onClick={() => updateSettings((s) => ({ ...s, roster: [...s.roster, { name: '', title: '' }] }))}>+ Add person</Btn></Row>
-          <div style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>Four per slide, in this order. Photos are added later in PowerPoint (or drop a headshot URL when we wire storage for them).</div>
+          <div style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>Four per slide, in this order. Headshots print on the team slides of both decks; the shipped photos are used unless you upload a replacement (PNG with a soft or transparent edge looks best).</div>
           {(settings.roster || []).map((p, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1fr 1.4fr auto auto' : '1fr 1fr', gap: 8, alignItems: 'end', padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'auto 1fr 1.4fr auto auto auto' : '1fr 1fr', gap: 8, alignItems: 'end', padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+              <img src={rosterPhoto(p)} alt="" style={{ width: 44, height: 54, objectFit: 'contain', borderRadius: 8, background: C.surface, border: `1px solid ${C.border}` }} />
               <Field C={C} label="Name"><Input C={C} value={p.name} onChange={(v) => updateSettings((s) => ({ ...s, roster: s.roster.map((x, k) => k === i ? { ...x, name: v } : x) }))} /></Field>
               <Field C={C} label="Title"><Input C={C} value={p.title} onChange={(v) => updateSettings((s) => ({ ...s, roster: s.roster.map((x, k) => k === i ? { ...x, title: v } : x) }))} /></Field>
+              <label style={{ fontSize: 12, fontWeight: 700, color: C.t2, cursor: 'pointer', padding: '6px 10px', border: `1px solid ${C.border}`, borderRadius: 10, whiteSpace: 'nowrap' }}>Photo…<input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; const data = await shrinkImage(file, 480); updateSettings((s) => ({ ...s, roster: s.roster.map((x, k) => k === i ? { ...x, photo: data } : x) })) }} /></label>
               <Btn C={C} small ghost disabled={i === 0} onClick={() => updateSettings((s) => { const r = [...s.roster]; [r[i - 1], r[i]] = [r[i], r[i - 1]]; return { ...s, roster: r } })}>↑</Btn>
               <Btn C={C} small ghost onClick={() => updateSettings((s) => ({ ...s, roster: s.roster.filter((_, k) => k !== i) }))}>×</Btn>
             </div>

@@ -1,18 +1,18 @@
 import { DEFAULT_FEE_SCHEDULE } from '../lib/fees'
 
 export const DEFAULT_ROSTER = [
-  { name: 'Eric L. Dunavant', title: 'Founder & President' },
-  { name: 'Drew Brown', title: 'CEO' },
-  { name: 'Chris Callahan', title: 'Director of Relationship Management' },
-  { name: 'Ray Marie Fenger', title: 'Chief Compliance Officer & Director of Operations' },
-  { name: 'Dani Wauchope', title: 'Chief Planning Strategist' },
-  { name: 'Carl Drury', title: 'Senior Planning Strategist' },
-  { name: 'Thea Lowery', title: 'Chief Relational Strategist' },
-  { name: 'Caleb Kelso Jr.', title: 'Financial Planning Associate' },
-  { name: 'Matthew Sullivan', title: 'Associate Advisor I' },
-  { name: 'Domnic Davenport', title: 'Investment Planning Associate' },
-  { name: 'Carson Rich', title: 'Senior Research & Trading Associate' },
-  { name: 'Gavin Morel', title: 'Executive Operations Assistant' },
+  { name: 'Eric L. Dunavant', title: 'Founder & President', photo: 'headshots/eric-l-dunavant.png' },
+  { name: 'Drew Brown', title: 'CEO', photo: 'headshots/drew-brown.png' },
+  { name: 'Chris Callahan', title: 'Director of Relationship Management', photo: 'headshots/chris-callahan.png' },
+  { name: 'Ray Marie Fenger', title: 'Chief Compliance Officer & Director of Operations', photo: 'headshots/ray-marie-fenger.png' },
+  { name: 'Dani Wauchope', title: 'Chief Planning Strategist', photo: 'headshots/dani-wauchope.png' },
+  { name: 'Carl Drury', title: 'Senior Planning Strategist', photo: 'headshots/carl-drury.png' },
+  { name: 'Thea Lowery', title: 'Chief Relational Strategist', photo: 'headshots/thea-lowery.png' },
+  { name: 'Caleb Kelso Jr.', title: 'Financial Planning Associate', photo: 'headshots/caleb-kelso-jr.png' },
+  { name: 'Matthew Sullivan', title: 'Associate Advisor I', photo: 'headshots/matthew-sullivan.png' },
+  { name: 'Domnic Davenport', title: 'Investment Planning Associate', photo: 'headshots/domnic-davenport.png' },
+  { name: 'Carson Rich', title: 'Senior Research & Trading Associate', photo: 'headshots/carson-rich.png' },
+  { name: 'Gavin Morel', title: 'Executive Operations Assistant', photo: 'headshots/gavin-morel.png' },
 ]
 
 // Quarterly audited performance. Update in Settings after each audit.

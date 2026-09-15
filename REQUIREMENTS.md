@@ -76,7 +76,7 @@ against the family's own goals, intentions and 100-Year Vision.
 | 15/16 | Tool rules | No written rules exist; Claude drafts fit rules and disqualifiers, team refines. |
 | 17 | States | Families all over the US; state of residence is a profile field. |
 | 18 | Fees | Per fee schedule (see below). Computed from net worth, planner may override, show "confirm with Compliance". |
-| 19 | Team roster | Unchanged except Chris Callahan = Director of Relationship Management. Matthew Sullivan = Associate Advisor I. Domnic Davenport = Investment Planning Associate. |
+| 19 | Team roster | Unchanged except Chris Callahan = Director of Relationship Management. Matthew Sullivan = Associate Advisor I. Domnic Davenport = Investment Planning Associate. Headshots extracted from the reference decks ship in `public/headshots/`; Settings → Team roster can replace any of them. |
 | 21 | Case studies | Tool suggests by archetype; planner picks. |
 | 22 | Deployment | Supabase project `khpddtxiyacrivlliwdw` (schema applied 14 Sep 2026). Hosting on GitHub Pages from the repo workflow. Cloudflare Worker still needed for Claude. |
 | 27 | Access | Shared team passcode gate before login (SHA-256 in `src/lib/passcode.jsx`), then paradiem.org email login. |

@@ -4,7 +4,7 @@
 // Georgia headings, Calibri body, flat square-edged shapes, Forest/Oxblood only on status figures.
 import PptxGenJS from 'pptxgenjs'
 import { BRAND } from './brand'
-import { COPY } from '../data/defaults'
+import { COPY, DEFAULT_ROSTER } from '../data/defaults'
 import { CASE_STUDIES } from '../data/caseStudies'
 import { gapFee, blueprintMonthly, DEFAULT_FEE_SCHEDULE } from './fees'
 import { fmtUsd, num } from './util'
@@ -18,12 +18,27 @@ const W = 10, HT = 5.625
 const LM = 0.55 // content left margin on header slides
 
 // ───────────────────────── primitives ─────────────────────────
-async function logoData() {
+async function asDataUrl(src) {
+  if (!src) return null
+  if (src.startsWith('data:')) return src
   try {
-    const r = await fetch(`${import.meta.env.BASE_URL || '/'}paradiem-logo.png`)
+    const r = await fetch(/^https?:/.test(src) ? src : `${import.meta.env.BASE_URL || '/'}${src.replace(/^\//, '')}`)
+    if (!r.ok) return null
     const b = await r.blob()
     return await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b) })
   } catch { return null }
+}
+const logoData = () => asDataUrl('paradiem-logo.png')
+async function imageDims(dataUrl) {
+  try { const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl }); return { w: img.naturalWidth, h: img.naturalHeight } } catch { return null }
+}
+// Headshot: the person's own photo, else the shipped one for that name.
+async function loadHeadshots(roster) {
+  return Promise.all((roster || []).map(async (p) => {
+    const src = p.photo || DEFAULT_ROSTER.find((d) => d.name === p.name)?.photo
+    const data = await asDataUrl(src); if (!data) return null
+    const dims = await imageDims(data); return dims ? { data, ...dims } : null
+  }))
 }
 const rect = (s, pptx, x, y, w, h, fill, line) => s.addShape(pptx.ShapeType.rect, { x, y, w, h, fill: fill ? { color: fill } : { type: 'none' }, line: line ? { color: line.color, width: line.width ?? 0.75 } : { color: fill || B.bg, width: 0 } })
 const hline = (s, pptx, x, y, w, color, width = 1) => s.addShape(pptx.ShapeType.line, { x, y, w, h: 0, line: { color, width } })
@@ -457,7 +472,9 @@ function caseStudy(pptx, cs) {
   })
   calibri(s, COPY.caseStudyFootnote, { x: LM, y: 4.86, w: 9, h: 0.2, fontSize: 7 })
 }
-function teamSlides(pptx, roster) {
+async function teamSlides(pptx, roster) {
+  const photos = await loadHeadshots(roster)
+  ;(roster || []).forEach((p, i) => { p._photo = photos[i] })
   for (const group of chunk(roster || [], 4)) {
     const s = pptx.addSlide(); s.background = { color: B.white }
     footer(s, pptx); rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
@@ -467,7 +484,8 @@ function teamSlides(pptx, roster) {
       const x = [0.45, 2.83, 5.22, 7.60][i], y = 1.39, w = 2.14, h = 3.00
       rect(s, pptx, x, y, w, h, B.tile)
       rect(s, pptx, x, y, w, 0.06, B.navy)
-      if (p.photo) s.addImage({ data: p.photo, x: x + 0.52, y: y + 0.25, w: 1.1, h: 1.1, rounding: true })
+      const ph = p._photo
+      if (ph) { const h = 1.36, w = Math.min(1.9, h * ph.w / ph.h); s.addImage({ data: ph.data, x: x + (2.14 - w) / 2, y: y + 0.13, w, h }) }
       else s.addShape(pptx.ShapeType.ellipse, { x: x + 0.52, y: y + 0.25, w: 1.1, h: 1.1, fill: { color: B.white }, line: { color: B.white, width: 0 } })
       hline(s, pptx, x + 0.35, y + 1.50, 1.45, B.gold, 1)
       georgia(s, p.name, { x: x + 0.04, y: y + 1.58, w: w - 0.08, h: 0.35, fontSize: 14.3, bold: true, align: 'center', valign: 'middle' })
@@ -659,7 +677,7 @@ export async function buildAssessment(f, settings) {
   if (under) nextStep(pptx, a.nextStepVariant === 'B' ? 'nextStepUnder5B' : 'nextStepUnder5A', fee, 'Family Capital Gap Analysis & Blueprint')
   else { nextStep(pptx, 'nextStepOver5', fee, 'Family Capital Gap Analysis'); gapSummary(pptx, f.goals || []); blueprint(pptx) }
   for (const id of (a.caseStudies || [])) { const cs = CASE_STUDIES.find((c) => c.id === id); if (cs) caseStudy(pptx, cs) }
-  teamSlides(pptx, settings.roster)
+  await teamSlides(pptx, settings.roster)
   if (under) pathForward(pptx, [['Begin the Family Capital Gap Analysis & Blueprint', `${fmtUsd(fee)} engagement`], ['Implement Family Capital Investment', 'Ongoing advisory relationship'], ['Receive Family Capital Gap Analysis & Blueprint', 'Comprehensive Multi-Generational Wealth Roadmap']])
   else pathForward(pptx, [['Schedule Kick-Off call for your Family Capital Gap Analysis', `${fmtUsd(fee)} Investment`], ['Provide Documents, Complete Surveys, Participate in 90-minute Initial Retreat', 'Data Gathering'], ['Receive Your Family Capital Gap Analysis', 'Estimated 2 weeks after step 2 complete']])
   return pptx.write({ outputType: 'blob' })
@@ -696,7 +714,7 @@ export async function buildGap(f, settings) {
   planAnalysisList(pptx, goals)
   gapSummary(pptx, goals, { panel: true })
   divider(pptx, ["What's top of mind?"])
-  teamSlides(pptx, settings.roster)
+  await teamSlides(pptx, settings.roster)
   blueprint(pptx, blueprintMonthly(netWorthOf(f), 1, fs))
   divider(pptx, ['Timeline and', 'Next Steps'])
   timelineSlide(pptx, f)
