@@ -59,7 +59,9 @@ export function edgePath(e, nodes) {
   // label anchor: middle of the longest segment
   let best = 0, bi = 0
   for (let i = 1; i < pts.length; i++) { const L = Math.abs(pts[i].x - pts[i - 1].x) + Math.abs(pts[i].y - pts[i - 1].y); if (L > best) { best = L; bi = i } }
-  const labelAt = { x: (pts[bi].x + pts[bi - 1].x) / 2, y: (pts[bi].y + pts[bi - 1].y) / 2, horizontal: Math.abs(pts[bi].x - pts[bi - 1].x) > Math.abs(pts[bi].y - pts[bi - 1].y) }
+  const horizontal = Math.abs(pts[bi].x - pts[bi - 1].x) > Math.abs(pts[bi].y - pts[bi - 1].y)
+  // sit the label beside the line (right of a vertical run, above a horizontal run) as in the reference charts
+  const labelAt = { x: (pts[bi].x + pts[bi - 1].x) / 2 + (horizontal ? 0 : 12), y: (pts[bi].y + pts[bi - 1].y) / 2 - (horizontal ? 16 : 0), horizontal }
   const elbow = pts.length >= 4 ? pts[Math.floor(pts.length / 2)] : labelAt
   return { d, points: pts, labelAt, elbow }
 }
@@ -109,7 +111,7 @@ export function toSVG(fc, { background = `#${BRAND.cream}` } = {}) {
     parts.push(`<path d="${g.d}" fill="none" stroke="#${BRAND.ink}" stroke-width="2" ${e.style === 'dashed' ? 'stroke-dasharray="8 6"' : ''} marker-end="url(#arr)"/>`)
     const lab = edgeLabelLines(e); if (lab.length) {
       const x = g.labelAt.x + (e.labelDx || 0), y = g.labelAt.y + (e.labelDy || 0) - (lab.length - 1) * 9
-      parts.push(`<text x="${x}" y="${y}" font-size="16" text-anchor="middle" fill="#${BRAND.ink}">${lab.map((t, i) => `<tspan x="${x}" dy="${i ? 18 : 0}">${esc(t)}</tspan>`).join('')}</text>`)
+      parts.push(`<text x="${x}" y="${y}" font-size="16" text-anchor="${g.labelAt.horizontal ? 'middle' : 'start'}" fill="#${BRAND.ink}">${lab.map((t, i) => `<tspan x="${x}" dy="${i ? 18 : 0}">${esc(t)}</tspan>`).join('')}</text>`)
     }
   }
   for (const n of fc.nodes) {

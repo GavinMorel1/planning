@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStore, useFamily } from '../lib/store'
 import { buildAssessment, buildGap } from '../lib/pptx'
-import { Card, Eyebrow, Title, Btn, Grid, Row, Note, Pill, Check, Empty, Field, Input } from '../components/ui'
+import { Card, Eyebrow, Title, Btn, Grid, Row, Note, Pill, Check, Empty, Field, Input, TextArea } from '../components/ui'
 import { download, nowIso, uid, fmtDate } from '../lib/util'
 import { DOC_CATEGORIES } from '../data/docCategories'
 
@@ -18,7 +18,7 @@ export default function Presentations({ C, isDesktop, setTab }) {
     ['Every goal assessed (met / missed)', goals.length > 0 && goals.every((g) => g.status !== 'open'), 'gap'],
     ['Observations on missed goals', goals.filter((g) => g.status === 'missed').every((g) => g.observations?.length), 'gap'],
     ['Balance sheet entered', (f.balanceSheet?.assets || []).length > 0, 'families'],
-    ['Estate flow chart saved to deck', Boolean(f.flowchart?.png), 'estate'],
+    ['Estate flow chart drawn', Boolean(f.flowchart?.nodes?.length), 'estate'],
     ['Tools accepted in Priorities', recs.length > 0, 'priorities'],
     ['Protection documents reviewed', DOC_CATEGORIES.filter((c) => c.protect).every((c) => (f.documents?.[c.id]?.status || 'missing') !== 'missing'), 'documents'],
   ]
@@ -32,11 +32,11 @@ export default function Presentations({ C, isDesktop, setTab }) {
     } catch (e) { alert(`Deck failed: ${e.message}`); console.error(e) }
     setBusy('')
   }
-  const gapOutline = ['Cover', 'Disclosures', 'Two Kinds of Return', 'Our Process (Gap Analysis = today)', 'What you said you want', `Goals and Intentions (${goals.length})`, 'Gap summary (met / missed / cost of inaction)', `One analysis page per goal (${goals.length})`, gm.includeToolPages !== false ? `Recommended tools (${recs.length}, by priority)` : null, gm.includeInvestmentSlides !== false ? 'Investment performance (Dividend, Growth)' : null, 'Balance sheet', 'Estate tax information', 'Estate flow chart', 'Current plan analysis (✓ / ×)', 'Gap summary', "What's top of mind?", 'Team & Advocates', 'Blueprint scope + fee'].filter(Boolean)
+  const gapOutline = ['Cover', 'Disclosures', 'Two Kinds of Return', 'Our Process (Gap Analysis = today)', 'What you said you want', `Goals and Intentions (${goals.length})`, 'Gap summary (met / missed / cost of inaction)', `One analysis page per goal (${goals.length})`, gm.includeToolPages !== false ? `Recommended tools (${recs.length}, by priority)` : null, gm.includeInvestmentSlides !== false ? 'Investment performance (Dividend, Growth)' : null, 'Balance sheet', 'Estate tax information', `Estate flow chart (editable shapes${f.flowchart?.animation?.enabled ? ', animated' : ''})`, 'Current plan analysis (✓ / ×)', 'Gap summary', "What's top of mind?", 'Team & Advocates', 'Blueprint scope + fee', 'Timeline — first year', 'Next steps (action plan)'].filter(Boolean)
 
   return (
     <div>
-      <Title C={C} isDesktop={isDesktop} sub="Editable PowerPoint files built from everything entered for this family. Georgia and Calibri, brand palette, flat shapes.">Presentations · {f.name}</Title>
+      <Title C={C} isDesktop={isDesktop} sub="Editable PowerPoint files built from everything entered for this family, slide-for-slide in the reference deck layouts and colours.">Presentations · {f.name}</Title>
       <Grid cols={isDesktop ? 2 : 1} gap={14}>
         <Card C={C}>
           <Eyebrow C={C}>Family Capital Assessment</Eyebrow>
@@ -52,6 +52,7 @@ export default function Presentations({ C, isDesktop, setTab }) {
               <Check C={C} checked={gm.includeToolPages !== false} onChange={(v) => patch({ gapMeta: { ...gm, includeToolPages: v } })} label="Include recommended-tools pages" />
             </div>
           </Grid>
+          <Field C={C} label="Next steps (one per line)" style={{ marginBottom: 10 }} hint="Shown on the closing Action Plan slide. Leave blank for the standard five."><TextArea C={C} rows={3} value={(gm.nextSteps || []).join('\n')} onChange={(v) => patch({ gapMeta: { ...gm, nextSteps: v.split('\n') } })} placeholder={'Cash Flow and Financial Analysis\nGenerational Impact Retreat\nFinalize Goals and Intentions\nIntroduction to Advisors\nParadiem Planning Day'} /></Field>
           <Row><Btn C={C} primary disabled={!!busy} onClick={() => run('gap')}>{busy === 'gap' ? 'Building…' : 'Download .pptx'}</Btn><Btn C={C} ghost onClick={() => setTab('gap')}>Edit analysis</Btn></Row>
         </Card>
         <Card C={C}>

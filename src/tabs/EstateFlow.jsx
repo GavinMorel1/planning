@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore, useFamily } from '../lib/store'
 import { CANVAS, NODE_TYPES, emptyFlow, newNode, newText, newLine, newEdge, edgePath, wrap, money, nodeColor, toSVG, toPNG, fromDraft, edgeLabelLines } from '../lib/flow'
 import { BRAND } from '../lib/brand'
+import { buildFlowDeck, describeSteps } from '../lib/flowpptx'
 import { draftFlowchart, CLAUDE_ENABLED } from '../lib/claude'
 import { familyContext } from '../lib/context'
 import { Card, Eyebrow, Title, Btn, Row, Field, Input, Select, TextArea, Note, Check, Pill } from '../components/ui'
@@ -89,7 +90,18 @@ export default function EstateFlow({ C, isDesktop }) {
   const selected = sel ? (fc[sel.kind === 'node' ? 'nodes' : sel.kind === 'edge' ? 'edges' : sel.kind === 'text' ? 'texts' : 'lines'] || []).find((x) => x.id === sel.id) : null
   const renumber = () => commit({ ...fc, edges: fc.edges.map((e, i) => ({ ...e, number: i + 1 })) })
   const exportPng = async () => { const png = await toPNG(fc); patch({ flowchart: { ...fc, png, pngAt: new Date().toISOString() } }); const b = await (await fetch(png)).blob(); download(b, `${f.name.replace(/\s+/g, '-')}-estate-flow.png`) }
-  const savePng = async () => { const png = await toPNG(fc); patch({ flowchart: { ...fc, png, pngAt: new Date().toISOString() } }) }
+  const exportPptx = async () => {
+    setBusy(true)
+    try { const blob = await buildFlowDeck(fc, f); download(blob, `${f.name.replace(/\s+/g, '-')}-estate-flow.pptx`) } catch (e) { alert(`PowerPoint export failed: ${e.message}`); console.error(e) }
+    setBusy(false)
+  }
+  const anim = fc.animation || { enabled: false, mode: 'click', effect: 'appear', delayMs: 700, order: 'flow', steps: {} }
+  const setAnim = (p) => patch({ flowchart: { ...fc, animation: { ...anim, ...p } } })
+  const setStep = (key, v) => setAnim({ steps: { ...(anim.steps || {}), [key]: v === '' ? undefined : Number(v) } })
+  const stepField = (key) => anim.enabled && anim.order === 'manual' && (
+    <Field C={C} label="Animation step" hint="1 = first to appear. Elements sharing a number appear together; blank = never animated (visible from the start)."><Input C={C} value={anim.steps?.[key] ?? ''} onChange={(v) => setStep(key, v.replace(/[^0-9]/g, ''))} placeholder="e.g. 3" /></Field>
+  )
+  const preview = anim.enabled ? describeSteps(fc) : []
   const exportSvg = () => download(new Blob([toSVG(fc)], { type: 'image/svg+xml' }), `${f.name.replace(/\s+/g, '-')}-estate-flow.svg`)
   const draft = async () => {
     if (fc.nodes.length && !confirm('Replace the current chart with a Claude draft?')) return
@@ -115,7 +127,7 @@ export default function EstateFlow({ C, isDesktop }) {
     <div>
       <Title C={C} isDesktop={isDesktop} sub="Current estate flow. Drag boxes anywhere, connect any two, label every line, add free text. Solid = asset flow; dashed horizontal = timing." right={<>
         {tb(busy ? 'Drafting…' : 'Draft with Claude', draft, { disabled: !CLAUDE_ENABLED || busy })}
-        {tb('Save to deck', savePng, { primary: true, disabled: !fc.nodes.length })}
+        {tb(busy ? 'Building…' : 'PowerPoint slide (.pptx)', exportPptx, { primary: true, disabled: !fc.nodes.length || busy })}
         {tb('PNG', exportPng, { disabled: !fc.nodes.length })}{tb('SVG', exportSvg, { disabled: !fc.nodes.length })}
       </>}>Estate Flow · {f.name}</Title>
 
@@ -131,7 +143,7 @@ export default function EstateFlow({ C, isDesktop }) {
           {tb('Delete', del, { ghost: true, disabled: !sel })}
           {!fc.nodes.length && tb('Starter layout', starter, { ghost: true })}
           {fc.nodes.length > 0 && tb('Clear', () => { if (confirm('Clear the whole chart?')) commit(emptyFlow()) }, { ghost: true })}
-          <span style={{ marginLeft: 'auto', fontSize: 11, color: C.t4 }}>{connect ? 'Connect mode: click the source box, then the target box. Esc cancels.' : 'Click to select · drag to move · Delete key removes · ⌘Z undo'}{fc.pngAt ? ` · saved to deck ${new Date(fc.pngAt).toLocaleString()}` : ''}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: C.t4 }}>{connect ? 'Connect mode: click the source box, then the target box. Esc cancels.' : 'Click to select · drag to move · Delete key removes · ⌘Z undo'}{fc.nodes.length ? ' · this chart goes into the Gap Analysis deck as editable PowerPoint shapes' : ''}</span>
         </Row>
       </Card>
 
@@ -162,8 +174,8 @@ export default function EstateFlow({ C, isDesktop }) {
                   {isSel && g.points.length >= 6 && <circle cx={g.elbow.x} cy={g.elbow.y} r={7} fill={`#${BRAND.gold}`} stroke={`#${BRAND.ink}`} onMouseDown={(ev) => startDrag(ev, 'elbow', e.id)} style={{ cursor: 'move' }} />}
                   {lab.length > 0 && (
                     <g onMouseDown={(ev) => startDrag(ev, 'edgeLabel', e.id)} style={{ cursor: 'move' }}>
-                      <rect x={lx - 80} y={ly - 16} width={160} height={lab.length * 18 + 6} fill={isSel ? `#${BRAND.gold}22` : 'transparent'} />
-                      <text x={lx} y={ly} fontSize={16} textAnchor="middle" fill={`#${BRAND.ink}`}>{lab.map((t, i) => <tspan key={i} x={lx} dy={i ? 18 : 0}>{t}</tspan>)}</text>
+                      <rect x={g.labelAt.horizontal ? lx - 80 : lx - 4} y={ly - 16} width={160} height={lab.length * 18 + 6} fill={isSel ? `#${BRAND.gold}22` : 'transparent'} />
+                      <text x={lx} y={ly} fontSize={16} textAnchor={g.labelAt.horizontal ? 'middle' : 'start'} fill={`#${BRAND.ink}`}>{lab.map((t, i) => <tspan key={i} x={lx} dy={i ? 18 : 0}>{t}</tspan>)}</text>
                     </g>
                   )}
                 </g>
@@ -207,6 +219,7 @@ export default function EstateFlow({ C, isDesktop }) {
                 <Field C={C} label="Type / colour"><Select C={C} value={selected.type} onChange={(v) => updSel({ type: v, color: undefined })} options={NODE_TYPES.map((t) => ({ value: t.id, label: t.label }))} style={{ width: '100%' }} /></Field>
                 <Field C={C} label="Custom colour (hex, optional)"><Input C={C} value={selected.color || ''} onChange={(v) => updSel({ color: v.replace('#', '') || undefined })} placeholder="e.g. 4A7C59" /></Field>
                 <Row gap={8}><Field C={C} label="Width"><Input C={C} value={selected.w} onChange={(v) => updSel({ w: Number(v) || selected.w })} /></Field><Field C={C} label="Height"><Input C={C} value={selected.h} onChange={(v) => updSel({ h: Number(v) || selected.h })} /></Field></Row>
+                {stepField(`node:${selected.id}`)}
                 <Btn C={C} small onClick={() => setConnect(selected.id)}>Connect from this box…</Btn>
               </div>
             )}
@@ -223,6 +236,7 @@ export default function EstateFlow({ C, isDesktop }) {
                   <Field C={C} label="From position (0–1)"><Input C={C} value={selected.fromPos ?? 0.5} onChange={(v) => updSel({ fromPos: Math.max(0, Math.min(1, Number(v) || 0)) })} /></Field>
                   <Field C={C} label="To position (0–1)"><Input C={C} value={selected.toPos ?? 0.5} onChange={(v) => updSel({ toPos: Math.max(0, Math.min(1, Number(v) || 0)) })} /></Field>
                 </Row>
+                {stepField(`edge:${selected.id}`)}
                 <Btn C={C} small ghost onClick={() => updSel({ labelDx: 0, labelDy: 0, mid: 0.5 })}>Reset label & elbow</Btn>
               </div>
             )}
@@ -231,12 +245,14 @@ export default function EstateFlow({ C, isDesktop }) {
                 <Field C={C} label="Text"><TextArea C={C} rows={3} value={selected.text} onChange={(v) => updSel({ text: v })} /></Field>
                 <Row gap={8}><Field C={C} label="Size"><Input C={C} value={selected.size} onChange={(v) => updSel({ size: Number(v) || 20 })} /></Field><Field C={C} label="Colour hex"><Input C={C} value={selected.color || ''} onChange={(v) => updSel({ color: v.replace('#', '') })} /></Field></Row>
                 <Row gap={12}><Check C={C} checked={selected.bold} onChange={(v) => updSel({ bold: v })} label="Bold" /><Check C={C} checked={selected.italic} onChange={(v) => updSel({ italic: v })} label="Italic" /></Row>
+                {stepField(`text:${selected.id}`)}
               </div>
             )}
             {selected && sel.kind === 'line' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <Field C={C} label="Label"><Input C={C} value={selected.label} onChange={(v) => updSel({ label: v })} /></Field>
                 <Field C={C} label="Vertical position"><Input C={C} value={selected.y} onChange={(v) => updSel({ y: Number(v) || selected.y })} /></Field>
+                {stepField(`line:${selected.id}`)}
               </div>
             )}
           </Card>
@@ -244,6 +260,27 @@ export default function EstateFlow({ C, isDesktop }) {
             <Eyebrow C={C}>Legend</Eyebrow>
             {NODE_TYPES.map((t) => <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.t2, padding: '3px 0' }}><span style={{ width: 14, height: 14, background: nodeColor({ type: t.id }) }} />{t.label}</div>)}
             <div style={{ fontSize: 11.5, color: C.t4, marginTop: 8, lineHeight: 1.5 }}>Flows are numbered in the order assets move. Older spouse passes first.</div>
+          </Card>
+          <Card C={C} style={{ marginTop: 10 }}>
+            <Eyebrow C={C}>PowerPoint animation</Eyebrow>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Check C={C} checked={anim.enabled} onChange={(v) => setAnim({ enabled: v })} label="Build the chart step by step in PowerPoint" />
+              {anim.enabled && (<>
+                <Field C={C} label="Trigger"><Select C={C} value={anim.mode || 'click'} onChange={(v) => setAnim({ mode: v })} options={[{ value: 'click', label: 'On click — one step per click' }, { value: 'auto', label: 'Automatic — first click starts, then timed' }]} style={{ width: '100%' }} /></Field>
+                <Row gap={8}>
+                  <Field C={C} label="Effect" style={{ flex: 1 }}><Select C={C} value={anim.effect || 'appear'} onChange={(v) => setAnim({ effect: v })} options={[{ value: 'appear', label: 'Appear' }, { value: 'fade', label: 'Fade in' }]} style={{ width: '100%' }} /></Field>
+                  {anim.mode === 'auto' && <Field C={C} label="Delay (ms)" style={{ flex: 1 }}><Input C={C} value={anim.delayMs ?? 700} onChange={(v) => setAnim({ delayMs: Number(v.replace(/[^0-9]/g, '')) || 0 })} /></Field>}
+                </Row>
+                <Field C={C} label="Order"><Select C={C} value={anim.order || 'flow'} onChange={(v) => setAnim({ order: v })} options={[{ value: 'flow', label: 'By flow number (roots first, then (1), (2)…)' }, { value: 'manual', label: 'Manual — set a step on each element' }]} style={{ width: '100%' }} /></Field>
+                <div style={{ fontSize: 11.5, color: C.t3, lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 700, color: C.t2, marginBottom: 4 }}>Build order ({preview.length} step{preview.length === 1 ? '' : 's'})</div>
+                  {!preview.length && <div style={{ color: C.t4 }}>{anim.order === 'manual' ? 'Select an element and give it an animation step number.' : 'Add boxes and connectors to see the order.'}</div>}
+                  {preview.slice(0, 30).map((st, i) => <div key={i} style={{ padding: '2px 0', borderTop: `1px solid ${C.border}` }}><span style={{ color: C.accent, fontWeight: 700 }}>{i + 1}.</span> {st.join(' + ')}</div>)}
+                  {preview.length > 30 && <div style={{ color: C.t4 }}>…and {preview.length - 30} more</div>}
+                </div>
+                <Note C={C}>The animation is written into the .pptx file itself (Appear / Fade entrance effects on the slide's animation pane), so it plays in PowerPoint and Keynote and stays editable there. It is included in the Gap Analysis deck and in the single-slide download above.</Note>
+              </>)}
+            </div>
           </Card>
         </div>
       </div>

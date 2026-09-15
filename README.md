@@ -29,6 +29,7 @@ src/lib/store.jsx      data layer (local or Supabase, same API)
 src/lib/claude.js      document extraction, goal drafting, flow-chart drafting
 src/lib/pptx.js        deck generator (Assessment + Gap Analysis)
 src/lib/flow.js        estate flow-chart model, geometry, SVG/PNG export
+src/lib/flowpptx.js    flow chart → native PowerPoint shapes + build animation
 src/lib/flags.js       family situation flags → tool suggestions
 src/data/tools.js      planning-tool library with fit rules and disqualifiers
 src/data/defaults.js   roster, quarterly performance, tax constants, static slide copy

@@ -42,8 +42,10 @@ against the family's own goals, intentions and 100-Year Vision.
 8. **Estate Flow** — free-form flow-chart editor: boxes anywhere, connectors
    between any anchor points, labels on connectors, free text anywhere, solid
    asset-flow lines, horizontal dashed timing separators (life / first death /
-   second death). Export PNG/SVG for the deck. Current chart only. Numbering
-   follows the **older spouse passing first**.
+   second death). Goes into the Gap Analysis deck as **editable PowerPoint
+   shapes** (and downloads as a single .pptx slide), with optional PowerPoint
+   build animation configured in the tab. PNG/SVG exports remain. Current chart
+   only. Numbering follows the **older spouse passing first**.
 9. **Cashflow** — eMoney is the cash-flow engine; the tool reads exported eMoney
    reports and summarises them. (Sample export still to be provided.)
 10. **Presentations** — generated decks per family, version history, PPTX.
@@ -81,6 +83,8 @@ against the family's own goals, intentions and 100-Year Vision.
 | 23 | Claude API | Paradiem will add an Anthropic API key (held in the Cloudflare Worker). |
 | 24 | Fonts | App uses the invest dashboard fonts (DM Sans). Exported decks use Georgia + Calibri. |
 | 25 | Duplicate slides | Under-5M p7 vs p8 and p20 vs p21 are alternatives; planner picks one of each per deck. |
+| 28 | Deck fidelity | Both decks are generated slide-for-slide from geometry and colours measured in the reference PDFs (`src/lib/brand.js` holds the measured palette; `src/lib/pptx.js` the per-slide layout). Light Two Kinds / Philosophy pages, navy Gap dividers, #EDECE7 footer strip. |
+| 29 | Flow chart in PowerPoint | Native shapes (boxes, connectors with arrowheads, labels, dashed timing lines) via `src/lib/flowpptx.js`; entrance animation (Appear / Fade, on click or timed, by flow number or manual step numbers) written into the slide XML. |
 | — | Tier | Planner chooses under/over $5M at family setup (known from the first conversation). |
 | — | Estate tax exemption used | Read from uploaded Form 709 when present, otherwise planner entry. |
 
@@ -123,8 +127,10 @@ Challenges, optional Potential Cost of Inaction with amount + note), current
 investment slides, balance sheet, estate tax information (per spouse: credit
 used/available, GST used/available), estate flow chart, current plan analysis
 (check / x list), gap summary again, "What's top of mind?", team, Blueprint
-scope with fee. New: recommended tools per goal with priority tier and
-rationale.
+scope with fee, "Timeline and Next Steps" divider, first-year timeline (from the
+family's calendar deadlines), Next Steps action plan (five standard steps,
+editable per family in Presentations). New: recommended tools per goal with
+priority tier and rationale.
 
 ## Estate flow chart conventions
 Couple box green, trusts gold, individuals/heirs navy, IRS oxblood. Numbered
