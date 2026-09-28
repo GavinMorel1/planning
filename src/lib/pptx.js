@@ -49,23 +49,28 @@ const calibri = (s, t, o) => text(s, t, { fontFace: F, color: B.text, ...o })
 const eyebrow = (s, t, o) => text(s, String(t || '').toUpperCase(), { fontFace: F, fontSize: 11, color: B.gold, charSpacing: 3, ...o })
 const arrow = (s, pptx, x, y, up, size = 0.19) => s.addShape(up ? pptx.ShapeType.upArrow : pptx.ShapeType.downArrow, { x, y, w: size, h: size, fill: { color: up ? B.green : B.red }, line: { color: up ? B.green : B.red, width: 0 } })
 
-function footer(s, pptx, { fill = B.tile, topLine } = {}) {
+// Footer strip. The reference decks use a 9pt letterspaced footer on the Assessment content
+// pages and a 5.3pt one on the cover, team, path-forward and every Gap Analysis page.
+let deckFooter = 'lg'
+function footer(s, pptx, { fill = B.tile, topLine, size = deckFooter, left } = {}) {
   rect(s, pptx, 0, HT - 0.38, W, 0.38, fill)
   if (topLine) hline(s, pptx, 0, HT - 0.38, W, topLine, 1)
-  calibri(s, COPY.footerLeft, { x: 0.45, y: HT - 0.38, w: 5, h: 0.38, fontSize: 6.5, color: B.caption, charSpacing: 4, valign: 'middle' })
-  calibri(s, COPY.footerRight, { x: 4.55, y: HT - 0.38, w: 5, h: 0.38, fontSize: 6.5, color: B.caption, charSpacing: 4, valign: 'middle', align: 'right' })
+  const fs = size === 'lg' ? 9 : 5.3, sp = size === 'lg' ? 3 : 2.2, x = size === 'lg' ? 0.40 : 0.34
+  calibri(s, left || COPY.footerLeft, { x, y: HT - 0.38, w: 5, h: 0.38, fontSize: fs, color: B.caption, charSpacing: sp, valign: 'middle' })
+  calibri(s, COPY.footerRight, { x: 4.55, y: HT - 0.38, w: W - x - 4.55, h: 0.38, fontSize: fs, color: B.caption, charSpacing: sp, valign: 'middle', align: 'right' })
 }
-function base(pptx, { bg = B.bg, bar = true, foot = true, navy = false } = {}) {
+const INVEST_FOOT = 'PARADIEM  |  FAMILY CAPITAL INVESTMENT'
+function base(pptx, { bg = B.bg, bar = true, foot = true, navy = false, footSize, footLeft } = {}) {
   const s = pptx.addSlide()
   s.background = { color: navy ? B.navy : bg }
   if (bar && !navy) rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
-  if (foot) footer(s, pptx)
+  if (foot) footer(s, pptx, { size: footSize || deckFooter, left: footLeft })
   return s
 }
 // Standard content header: gold eyebrow, Georgia 26 title, rule (short gold or full-width light)
 function header(s, pptx, eb, title, { rule = 'gold', x = LM, sub, titleSize = 26 } = {}) {
-  if (eb) eyebrow(s, eb, { x, y: 0.25, w: 9, h: 0.24 })
-  georgia(s, title, { x, y: 0.51, w: 9.2, h: 0.65, fontSize: titleSize, valign: 'middle' })
+  if (eb) eyebrow(s, eb, { x, y: 0.24, w: 9, h: 0.24, fontSize: 11.5 })
+  georgia(s, title, { x, y: 0.40, w: 9.2, h: 0.55, fontSize: titleSize, valign: 'middle' })
   if (rule === 'gold') hline(s, pptx, x, 1.28, 1.2, B.gold, 1.5)
   else if (rule === 'full') hline(s, pptx, x, 1.28, 9.0, B.rule, 1)
   if (sub) calibri(s, sub, { x, y: 1.42, w: 9, h: 0.3, fontSize: 10.5, italic: true })
@@ -79,7 +84,7 @@ const linesFor = (t, size, w) => Math.max(1, Math.ceil(String(t || '').length / 
 
 // ───────────────────────── shared slides ─────────────────────────
 function cover(pptx, logo, title, coupleLabel, date) {
-  const s = base(pptx, { bar: true })
+  const s = base(pptx, { bar: true, footSize: 'sm' })
   if (logo) s.addImage({ data: logo, x: 7.05, y: 0.22, w: 2.55, h: 0.62 })
   georgia(s, title, { x: 0.45, y: 0.89, w: 8, h: 0.7, fontSize: 36.7, valign: 'middle' })
   georgia(s, coupleLabel || 'Mr. and Mrs. ________', { x: 0.45, y: 2.29, w: 8.5, h: 0.7, fontSize: 36.7, valign: 'middle' })
@@ -90,7 +95,7 @@ function cover(pptx, logo, title, coupleLabel, date) {
 function disclosures(pptx) {
   const s = base(pptx)
   header(s, pptx, 'Disclosures', 'Legal Disclosures & Important Information')
-  calibri(s, paras(COPY.disclosures, { paraSpaceAfter: 6 }), { x: LM, y: 1.48, w: 9.0, h: 3.7, fontSize: 8.6, color: B.text, lineSpacingMultiple: 1.05 })
+  calibri(s, paras(COPY.disclosures, { paraSpaceAfter: 9 }), { x: LM, y: 1.26, w: 9.0, h: 3.9, fontSize: 9.5, color: B.text, lineSpacingMultiple: 1.05 })
 }
 function framework(pptx, { tiles = true } = {}) {
   const s = base(pptx)
@@ -165,8 +170,8 @@ function numbersReveal(pptx, settings, familyName) {
     rect(s, pptx, x, y, w, h, B.tile)
     rect(s, pptx, x, y, 0.05, h, bad ? B.red : B.navy)
     georgia(s, c.pct, { x: x + 0.15, y: y + 0.45, w: w - 0.2, h: 0.55, fontSize: 28, color: bad ? B.red : B.navy, valign: 'middle' })
-    georgia(s, c.label, { x: x + 0.15, y: y + 1.1, w: w - 0.25, h: 0.6, fontSize: 10, lineSpacingMultiple: 1.25 })
-    if (c.footnote) calibri(s, c.footnote, { x: x + 0.15, y: y + 1.62, w: w - 0.25, h: 0.25, fontSize: 8 })
+    georgia(s, c.label, { x: x + 0.15, y: y + 1.1, w: w - 0.18, h: 0.65, fontSize: 10, lineSpacingMultiple: 1.25 })
+    if (c.footnote) calibri(s, c.footnote, { x: x + 0.15, y: y + 1.78, w: w - 0.18, h: 0.25, fontSize: 8 })
     const amt = fmtUsd(c.amount)
     calibri(s, amt, { x: x + 0.1, y: 4.22, w: w - 0.42, h: 0.3, fontSize: 15, bold: true, color: B.navy2, valign: 'middle' })
     arrow(s, pptx, x + w - 0.3, 4.28, c.dir !== 'down')
@@ -188,34 +193,34 @@ function incomeClarity(pptx, a, familyName) {
   calibri(s, COPY.hypothetical, { x: 0.1, y: 4.78, w: 9.8, h: 0.75, fontSize: 6.5, color: B.caption, charSpacing: 2, lineSpacingMultiple: 1.15 })
 }
 function philosophy(pptx) {
-  const s = base(pptx, { bar: false })
+  const s = base(pptx, { bar: false, footLeft: INVEST_FOOT })
   header(s, pptx, 'Investment philosophy', 'Family Capital Investment')
   ;["We don't INVEST.", 'We INTENTIONALLY OWN', 'EXCELLENT COMPANIES.'].forEach((t, i) => georgia(s, t, { x: LM, y: [1.83, 2.24, 2.66][i], w: 8, h: 0.4, fontSize: 17, valign: 'middle' }))
   hline(s, pptx, LM, 3.60, 1.2, B.gold, 1.5)
   calibri(s, 'The distinction matters. Investors react to markets. Owners build enduring value with conviction.', { x: LM, y: 3.90, w: 4.8, h: 0.6, fontSize: 12, lineSpacingMultiple: 1.3 })
 }
 function principles(pptx) {
-  const s = base(pptx, { bar: false })
+  const s = base(pptx, { bar: false, footLeft: INVEST_FOOT })
   header(s, pptx, 'The three principles', '3 Principles of Family Capital Investment')
   const cols = [['01', 'Think Like\nan Owner', 'Excellence evaluation', [['Innovation', 'Creating products/services that benefit consumers?'], ['Inspiration', 'Driven by legacy purpose contributing to human flourishing?'], ['Infrastructure', 'Solid foundation of sound business practices and structure?']]],
     ['02', 'Simplicity Over\nComplexity', 'Our ownership strategies', [['25 Stock Dividend Strategy', 'Income-focused ownership of 25 high-quality companies.'], ['25 Stock Growth Strategy', 'Growth-focused ownership of 25 high-conviction companies.'], ['Research-backed', 'Quality over quantity — conviction over diversification.']]],
     ['03', 'Research Reveals\nOpportunities', 'Conviction-based decisions', [['Deep Analysis', 'Fundamental research uncovers businesses others may overlook.'], ['Un-Common Sense', 'Current economic environments guide decisions and allocations.'], ['Clear Entry/Exit', 'Defined criteria for when to act — and when to hold.']]]]
   cols.forEach(([n, t, e, items], i) => {
     const x = [0.45, 3.63, 6.81][i], y = 1.58, w = 2.95, h = 3.28
-    rect(s, pptx, x, y, w, h, i === 0 ? B.bg : B.tile2, { color: i === 0 ? B.navy : B.tileBorder, width: 0.75 })
+    rect(s, pptx, x, y, w, h, B.tile2, { color: B.tileBorder, width: 0.75 })
     rect(s, pptx, x, y, w, 0.06, B.navy)
     georgia(s, n, { x: x + 0.2, y: y + 0.25, w: 1, h: 0.4, fontSize: 20 })
     georgia(s, t, { x: x + 0.2, y: y + 0.7, w: w - 0.4, h: 0.62, fontSize: 14, lineSpacingMultiple: 1.15 })
     hline(s, pptx, x + 0.2, 2.90, w - 0.4, B.rule, 1)
-    eyebrow(s, e, { x: x + 0.2, y: 3.03, w: w - 0.4, h: 0.2, fontSize: 10, charSpacing: 2.5 })
+    eyebrow(s, e, { x: x + 0.2, y: 3.03, w: w - 0.25, h: 0.2, fontSize: 10, charSpacing: 2 })
     const runs = []
     items.forEach(([a, b], k) => { runs.push({ text: a, options: { bold: true, color: B.navy, fontSize: 10, breakLine: true } }); runs.push({ text: b, options: { color: B.text, fontSize: 9, breakLine: k < items.length - 1 } }) })
-    calibri(s, runs, { x: x + 0.2, y: 3.27, w: w - 0.4, h: 1.5, lineSpacingMultiple: 1.2 })
+    calibri(s, runs, { x: x + 0.2, y: 3.25, w: w - 0.35, h: 1.55, lineSpacingMultiple: 1.08 })
   })
 }
 function ownersLens(pptx, sc = {}) {
   const s = pptx.addSlide(); s.background = { color: B.white }
-  footer(s, pptx, { fill: 'ECEAE3', topLine: B.gold })
+  footer(s, pptx, { fill: 'ECEAE3', topLine: B.gold, size: 'sm', left: INVEST_FOOT })
   eyebrow(s, 'Think like an owner', { x: LM, y: 0.38, w: 6, h: 0.22, fontSize: 10, bold: true })
   georgia(s, "An Owner's Lens", { x: LM, y: 0.62, w: 8, h: 0.6, fontSize: 28.6, bold: true, valign: 'middle' })
   hline(s, pptx, LM, 1.28, 1.0, B.gold, 1.5)
@@ -238,23 +243,24 @@ function ownersLens(pptx, sc = {}) {
 function perfTable(pptx, sleeve, perf) {
   const p = perf?.[sleeve]; if (!p) return
   const s = pptx.addSlide(); s.background = { color: B.white }
-  footer(s, pptx)
+  footer(s, pptx, { size: 'sm' })
   georgia(s, p.name + (p.calendar ? ' & Calendar Year Returns' : ''), { x: 0.35, y: 0.14, w: 9, h: 0.45, fontSize: 18, valign: 'middle' })
   hline(s, pptx, 0.35, 0.66, 0.9, B.gold, 1.5)
   const asOf = perf.asOf ? new Date(`${perf.asOf}T00:00:00`).toLocaleDateString('en-US') : ''
-  const rowH = 0.32
-  const block = (b, title, y) => {
+  const single = !p.calendar
+  const rowH = single ? 0.46 : 0.30
+  const block = (b, title, y, withAsOf) => {
     if (!b) return y
     const cols = b.columns, n = cols.length
     const x0 = 2.75, cw = (9.65 - x0) / n
-    eyebrow(s, `${title}${asOf ? ` (as of ${asOf})` : ''}`, { x: 0.35, y, w: 9, h: 0.22, fontSize: 9, color: B.text, charSpacing: 3 })
-    y += 0.24
-    cols.forEach((c, k) => calibri(s, String(c).toUpperCase(), { x: x0 + k * cw, y, w: cw, h: 0.22, fontSize: 8, charSpacing: 2, align: 'center', valign: 'middle' }))
-    y += 0.24
+    eyebrow(s, `${title}${withAsOf && asOf ? ` (as of ${asOf})` : ''}`, { x: 0.35, y, w: 9, h: 0.2, fontSize: 9, color: B.text, charSpacing: 3 })
+    y += single ? 0.34 : 0.2
+    cols.forEach((c, k) => calibri(s, String(c).toUpperCase(), { x: x0 + k * cw, y, w: cw, h: 0.2, fontSize: 8, charSpacing: 2, align: 'center', valign: 'middle' }))
+    y += single ? 0.32 : 0.22
     hline(s, pptx, 0.35, y, 9.3, B.rule, 0.75)
     const rowsDef = [['Gross', b.gross, 'gross'], ['Net', b.net, 'net'], ...p.benchmarks.map((bm) => [bm.label, b[bm.key], 'bm'])]
     rowsDef.forEach(([lab, vals, kind]) => {
-      const h = kind === 'bm' ? rowH + 0.06 : rowH
+      const h = kind === 'bm' ? rowH + 0.05 : rowH
       if (kind === 'net') rect(s, pptx, 0.35, y + 0.02, 9.3, h - 0.04, B.tile, { color: B.navy, width: 1 })
       calibri(s, kind === 'bm' ? lab : lab.toUpperCase(), { x: 0.45, y, w: 2.2, h, fontSize: kind === 'bm' ? 8 : 7.5, charSpacing: kind === 'bm' ? 1 : 2, color: kind === 'net' ? B.gold : B.text, valign: 'middle', lineSpacingMultiple: 1.1 })
       cols.forEach((_, k) => {
@@ -267,14 +273,14 @@ function perfTable(pptx, sleeve, perf) {
     hline(s, pptx, 0.35, y + 0.02, 9.3, B.gold, 1.5)
     return y + 0.16
   }
-  let y = 0.82
-  y = block(p.annualized, 'Annualised returns', y)
-  y = block(p.calendar, `Calendar year returns — past ${p.calendar?.columns?.length || 5} years`, y)
-  const dy = Math.min(Math.max(y + 0.05, 3.6), 4.5)
-  calibri(s, p.disclosure, { x: 0.35, y: dy, w: 9.3, h: HT - 0.42 - dy, fontSize: 6.3, lineSpacingMultiple: 1.1 })
+  let y = single ? 1.05 : 0.80
+  y = block(p.annualized, single ? 'Returns' : 'Annualised returns', y, true)
+  y = block(p.calendar, `Calendar year returns — past ${p.calendar?.columns?.length || 5} years`, y, false)
+  const dy = Math.max(y + 0.12, single ? 4.55 : 4.35)
+  calibri(s, p.disclosure, { x: 0.35, y: dy, w: 9.3, h: Math.max(0.4, HT - 0.42 - dy), fontSize: 6.3, lineSpacingMultiple: 1.05 })
 }
 function proposedOwnership(pptx, a, familyName) {
-  const s = base(pptx, { bar: false })
+  const s = base(pptx, { bar: false, footLeft: INVEST_FOOT })
   const short = shortName({ name: familyName })
   header(s, pptx, `${short} Family Ownership`, `${short} Family Proposed Ownership`, { x: 0.45 })
   const total = num(a.portfolioTotal)
@@ -296,10 +302,11 @@ function proposedOwnership(pptx, a, familyName) {
   georgia(s, total ? fmtUsd(total) : '', { x: 2.3, y: 4.52, w: 2.0, h: 0.32, fontSize: 12, align: 'right', valign: 'middle' })
   eyebrow(s, 'Proposed ownership breakdown', { x: 4.90, y: 1.62, w: 4.7, h: 0.22, fontSize: 10 })
   const cx = [4.90, 6.05, 7.75, 8.70], cw = [1.15, 1.7, 0.85, 0.90]
+  hline(s, pptx, 4.90, 1.98, 4.70, B.navy, 1)
   ;['Strategy', 'Manager', 'Alloc', 'Amount'].forEach((t, k) => calibri(s, t.toUpperCase(), { x: cx[k], y: 2.05, w: cw[k], h: 0.22, fontSize: 9, bold: true, color: B.gold, charSpacing: 2, align: k >= 2 ? 'right' : 'left', valign: 'middle' }))
   rows.forEach(([n, m, pct], i) => {
     const y = 2.42 + i * 0.46
-    rect(s, pptx, 4.90, y, 4.70, 0.46, i % 2 ? B.tile2 : B.bg, { color: B.tileBorder, width: 0.75 })
+    rect(s, pptx, 4.90, y, 4.70, 0.46, i % 2 ? B.tile : B.white, { color: B.navy, width: 1 })
     calibri(s, n, { x: cx[0] + 0.08, y, w: cw[0], h: 0.46, fontSize: 9.5, color: B.navy, valign: 'middle' })
     calibri(s, m, { x: cx[1], y, w: cw[1], h: 0.46, fontSize: 9.5, valign: 'middle' })
     calibri(s, `${pct.toFixed(1)}%`, { x: cx[2], y, w: cw[2], h: 0.46, fontSize: 9.5, align: 'right', valign: 'middle' })
@@ -312,7 +319,7 @@ function proposedOwnership(pptx, a, familyName) {
 }
 function cashNeeds(pptx, a) {
   const s = pptx.addSlide(); s.background = { color: B.white }
-  footer(s, pptx)
+  footer(s, pptx, { size: 'sm', left: INVEST_FOOT })
   georgia(s, '5 Year Cash Needs', { x: 0.55, y: 0.78, w: 5, h: 0.6, fontSize: 28, valign: 'middle' })
   hline(s, pptx, 0.55, 1.45, 1.35, B.gold, 2)
   const need = num(a.retirementCashNeed), g = num(a.cashGrowthPct) || 3
@@ -330,7 +337,7 @@ function cashNeeds(pptx, a) {
   }
 }
 function buyOption(pptx) {
-  const s = base(pptx, { bar: false })
+  const s = base(pptx, { bar: false, footLeft: INVEST_FOOT })
   header(s, pptx, 'Research reveals opportunity', 'Buy Option Cash Strategy in Down Markets')
   calibri(s, 'Down Market Deployment Logic', { x: 5.15, y: 1.18, w: 4, h: 0.28, fontSize: 11, valign: 'middle' })
   s.addShape(pptx.ShapeType.line, { x: 5.15, y: 1.50, w: 2.05, h: 2.35, line: { color: 'D62728', width: 1.5 } })
@@ -348,7 +355,7 @@ function buyOption(pptx) {
   calibri(s, '*40 Months to recovery – "Bear markets may not be as ferocious as they appear", Mark Hulbert, Wall Street Journal, March 8-9, 2014.', { x: 3.0, y: 5.0, w: 6.65, h: 0.22, fontSize: 7, italic: true, color: B.caption, align: 'right', valign: 'middle' })
 }
 function proposedPerf(pptx, a, familyName) {
-  const s = base(pptx, { bar: false })
+  const s = base(pptx, { bar: false, footLeft: INVEST_FOOT })
   header(s, pptx, `${shortName({ name: familyName }) || 'The'} Family`, 'Proposed Portfolio Performance', { rule: 'full', x: 0.50 })
   const stats = [[a.potentialReturn, 'Total Potential Return'], [a.annualReturn, 'Potential Annual Return'], [a.dividendYield, 'Annual Dividend Yield']]
   stats.forEach(([v, l], i) => {
@@ -359,10 +366,10 @@ function proposedPerf(pptx, a, familyName) {
     hline(s, pptx, x + 0.2, y + 1.2, w - 0.4, B.rule, 1)
     georgia(s, l, { x: x + 0.2, y: y + 1.3, w: w - 0.4, h: 0.4, fontSize: 11.1, valign: 'middle' })
   })
-  calibri(s, COPY.riskDisclosure, { x: 2.1, y: 3.95, w: 5.8, h: 1.2, fontSize: 5.6, align: 'center', lineSpacingMultiple: 1.1 })
+  calibri(s, COPY.riskDisclosure, { x: 1.9, y: 3.9, w: 6.2, h: 1.25, fontSize: 5.2, align: 'center', lineSpacingMultiple: 1.05 })
 }
 function lifeboat(pptx, a, familyName) {
-  const s = base(pptx, { bar: false })
+  const s = base(pptx, { bar: false, footLeft: INVEST_FOOT })
   header(s, pptx, 'Risk assessment', `${shortName({ name: familyName }) || 'The'} Family — Lifeboat Drill`)
   calibri(s, '95% Probability Range  —  6-Month Horizon', { x: LM, y: 1.55, w: 6, h: 0.25, fontSize: 10, valign: 'middle' })
   const total = num(a.portfolioTotal)
@@ -376,12 +383,12 @@ function lifeboat(pptx, a, familyName) {
   rect(s, pptx, 6.75, 1.91, 2.70, 1.05, B.tile, { color: B.tileBorder, width: 0.75 })
   georgia(s, gainPct, { x: 6.9, y: 2.0, w: 2.4, h: 0.5, fontSize: 26, color: B.green, valign: 'middle' })
   calibri(s, `${a.gainAmt ? '+' + fmtUsd(Math.abs(num(a.gainAmt))) : ''}  Potential Gain`, { x: 6.9, y: 2.58, w: 2.4, h: 0.25, fontSize: 10, color: B.green, valign: 'middle' })
-  rect(s, pptx, 0.55, 3.10, 9.00, 0.30, B.tile, { color: 'CCCAC4', width: 0.5 })
-  rect(s, pptx, 0.55, 3.10, 2.60, 0.30, B.redBar, { color: B.redBorder, width: 0.5 })
-  rect(s, pptx, 5.38, 3.10, 4.17, 0.30, B.greenBar, { color: B.greenBorder, width: 0.5 })
+  rect(s, pptx, 0.55, 3.10, 9.00, 0.30, B.tile, { color: B.navy, width: 0.75 })
+  rect(s, pptx, 0.55, 3.10, 2.60, 0.30, B.redBar, { color: B.navy, width: 0.75 })
+  rect(s, pptx, 5.38, 3.10, 4.17, 0.30, B.greenBar, { color: B.navy, width: 0.75 })
   rect(s, pptx, 4.28, 3.06, 0.08, 0.38, B.navy)
   calibri(s, 'Current', { x: 3.82, y: 3.50, w: 1.0, h: 0.22, fontSize: 10, color: B.gold, align: 'center', valign: 'middle' })
-  calibri(s, COPY.riskDisclosure, { x: LM, y: 4.0, w: 9.0, h: 1.15, fontSize: 5.6, lineSpacingMultiple: 1.1 })
+  calibri(s, COPY.lifeboatDisclosure || COPY.riskDisclosure, { x: LM, y: 3.95, w: 9.0, h: 1.2, fontSize: 5.4, lineSpacingMultiple: 1.05 })
 }
 function nextStep(pptx, variant, fee, title) {
   const v = COPY[variant]
@@ -477,7 +484,7 @@ async function teamSlides(pptx, roster) {
   ;(roster || []).forEach((p, i) => { p._photo = photos[i] })
   for (const group of chunk(roster || [], 4)) {
     const s = pptx.addSlide(); s.background = { color: B.white }
-    footer(s, pptx); rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
+    footer(s, pptx, { size: 'sm' }); rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
     georgia(s, 'Your Team & Advocates', { x: 0.45, y: 0.28, w: 8, h: 0.5, fontSize: 21, valign: 'middle' })
     hline(s, pptx, 0.45, 1.10, 1.0, B.gold, 2)
     group.forEach((p, i) => {
@@ -494,7 +501,7 @@ async function teamSlides(pptx, roster) {
   }
 }
 function pathForward(pptx, steps) {
-  const s = base(pptx, { bar: false })
+  const s = base(pptx, { bar: false, footSize: 'sm' })
   rect(s, pptx, 0.42, 0.65, 0.06, 4.45, B.navy)
   eyebrow(s, 'Paradiem  ×  Next steps', { x: 0.65, y: 0.70, w: 6, h: 0.22, fontSize: 10 })
   georgia(s, 'Your\nPath Forward', { x: 0.65, y: 0.98, w: 5, h: 1.3, fontSize: 32, lineSpacingMultiple: 1.05 })
@@ -515,7 +522,7 @@ function divider(pptx, lines) {
 }
 function simpleTitle(s, pptx, eb, title, { size = 21 } = {}) {
   if (eb) eyebrow(s, eb, { x: 0.45, y: 0.25, w: 8, h: 0.22, fontSize: 10.2 })
-  georgia(s, title, { x: 0.45, y: eb ? 0.45 : 0.28, w: 8.5, h: title.includes('\n') ? 0.85 : 0.5, fontSize: size, valign: 'middle', lineSpacingMultiple: 1.1 })
+  georgia(s, title, { x: 0.45, y: eb ? 0.38 : 0.28, w: 8.5, h: title.includes('\n') ? 0.85 : 0.45, fontSize: size, valign: 'middle', lineSpacingMultiple: 1.1 })
   hline(s, pptx, 0.45, 1.16, 0.98, B.gold, 2.5)
 }
 function goalsList(pptx, goals) {
@@ -564,7 +571,7 @@ function goalAnalysis(pptx, g) {
   }
 }
 function estateTaxSlide(pptx, f, tax) {
-  const s = base(pptx); header(s, pptx, 'Financial overview', 'Estate Tax Information', { x: 0.45 })
+  const s = base(pptx); simpleTitle(s, pptx, 'Financial overview', 'Estate Tax Information')
   ;['s1', 's2'].forEach((k, i) => {
     const e = f.estateTax?.[k] || {}, name = f.profile?.[`spouse${i + 1}`]?.name || (i ? 'Wife' : 'Husband')
     const x = [0.45, 5.17][i], y = 1.30, w = 4.39
@@ -580,7 +587,7 @@ function estateTaxSlide(pptx, f, tax) {
   })
 }
 function balanceSheetSlide(pptx, f) {
-  const s = base(pptx); header(s, pptx, 'Financial overview', 'Your Current Balance Sheet', { x: 0.45 })
+  const s = base(pptx); simpleTitle(s, pptx, 'Financial overview', 'Your Current Balance Sheet')
   const assets = f.balanceSheet?.assets || [], liab = f.balanceSheet?.liabilities || []
   if (!assets.length && !liab.length) { calibri(s, 'Balance sheet not yet entered.', { x: 0.45, y: 1.5, w: 6, h: 0.4, fontSize: 12 }); return }
   const hdr = (t, align) => ({ text: t.toUpperCase(), options: { fontFace: F, fontSize: 9, bold: true, color: B.white, fill: { color: B.navy }, align: align || 'left', charSpacing: 1.5 } })
@@ -600,7 +607,7 @@ async function flowSlide(pptx, fc) {
 function toolPages(pptx, recs) {
   divider(pptx, ['How we close', 'the gaps.'])
   for (const group of chunk(recs, 5)) {
-    const s = base(pptx); header(s, pptx, 'Recommended planning tools', 'Priorities, most urgent first', { x: 0.45 })
+    const s = base(pptx); simpleTitle(s, pptx, 'Recommended planning tools', 'Priorities, most urgent first')
     group.forEach((r, i) => {
       const y = 1.45 + i * 0.72
       const tier = TIERS.find((t) => t.id === r.tier)
@@ -625,7 +632,7 @@ function timelineSlide(pptx, f) {
   })
 }
 function nextStepsSlide(pptx, steps) {
-  const s = base(pptx); header(s, pptx, 'Action plan', 'Next Steps', { x: 0.45 })
+  const s = base(pptx); simpleTitle(s, pptx, 'Action plan', 'Next Steps')
   steps.slice(0, 6).forEach((t, i) => {
     const y = 1.36 + i * 0.66
     rect(s, pptx, 0.45, y, 9.10, 0.58, B.tile)
@@ -646,6 +653,7 @@ const longDate = (d) => d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US'
 
 // ───────────────────────── Assessment deck ─────────────────────────
 export async function buildAssessment(f, settings) {
+  deckFooter = 'lg'
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
   pptx.author = 'Paradiem'; pptx.company = 'Paradiem, LLC'; pptx.title = `Family Capital Assessment — ${f.name}`
@@ -685,6 +693,7 @@ export async function buildAssessment(f, settings) {
 
 // ───────────────────────── Gap Analysis deck ─────────────────────────
 export async function buildGap(f, settings) {
+  deckFooter = 'sm'
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
   pptx.author = 'Paradiem'; pptx.company = 'Paradiem, LLC'; pptx.title = `Family Capital Gap Analysis — ${f.name}`
