@@ -1,9 +1,8 @@
-// App-wide login. Any @paradiem.org email may sign in; everyone has the same access.
+// App-wide login. Anyone may create an account and sign in (the shared passcode gate comes first); everyone has the same access.
 // In LOCAL MODE (no Supabase env) the gate is skipped and a "local" user is used.
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, SUPABASE_ENABLED } from './supabase'
 
-const isParadiemEmail = (email) => (email ?? '').trim().toLowerCase().endsWith('@paradiem.org')
 const NAVY = '#171738', GOLD = '#C9A84C', PARCHMENT = '#F4EFE4'
 const AuthContext = createContext(null)
 
@@ -22,7 +21,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const email = SUPABASE_ENABLED ? (session?.user?.email ?? null) : 'local@paradiem.org'
-  const allowed = SUPABASE_ENABLED ? (session ? isParadiemEmail(email) : null) : true
+  const allowed = SUPABASE_ENABLED ? (session ? true : null) : true
   const loading = SUPABASE_ENABLED && session === undefined
 
   const value = {
@@ -48,7 +47,7 @@ export function AuthGate({ children }) {
   if (!allowed) return (
     <Splash>
       <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>Not authorized</div>
-      <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 18 }}>{email} is not a paradiem.org account.</div>
+      <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 18 }}>{email} is not allowed to use this app.</div>
       <button onClick={signOut} style={ghostBtn}>Sign out</button>
     </Splash>
   )
@@ -86,7 +85,7 @@ function Login() {
     setError(null); setInfo(null); setBusy(true)
     try {
       const em = email.trim().toLowerCase()
-      if (!isParadiemEmail(em)) { setError('Use your paradiem.org email.'); setBusy(false); return }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { setError('Enter a valid email address.'); setBusy(false); return }
       if (mode === 'signup') {
         const { data, error: suErr } = await supabase.auth.signUp({ email: em, password })
         if (suErr) throw suErr
@@ -105,8 +104,8 @@ function Login() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: NAVY, padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 360, background: PARCHMENT, borderRadius: 16, padding: 26 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: NAVY }}>Paradiem Planning</div>
-        <div style={{ fontSize: 13, color: '#5b5b6b', marginBottom: 18 }}>{mode === 'signin' ? 'Sign in to continue.' : 'Create your account with your paradiem.org email.'}</div>
-        <input type="email" inputMode="email" autoComplete="email" placeholder="you@paradiem.org" value={email} onChange={(e) => setEmail(e.target.value)} style={field} />
+        <div style={{ fontSize: 13, color: '#5b5b6b', marginBottom: 18 }}>{mode === 'signin' ? 'Sign in to continue.' : 'Create your account with your email address.'}</div>
+        <input type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} style={field} />
         <input type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} style={{ ...field, marginTop: 8 }} />
         {error && <div style={{ fontSize: 12, color: '#b3261e', marginTop: 8 }}>{error}</div>}
         {info && <div style={{ fontSize: 12, color: '#1b7a43', marginTop: 8 }}>{info}</div>}

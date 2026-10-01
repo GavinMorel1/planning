@@ -20,7 +20,7 @@ against the family's own goals, intentions and 100-Year Vision.
   Guidelines: Georgia for headings, Calibri for body, parchment background, flat
   square-edged shapes, gold rules and eyebrows, Forest green / Oxblood red only on
   status figures. See `reference/brand/`.
-- All users have the same access. Login is any `@paradiem.org` email.
+- All users have the same access. Anyone who knows the team passcode can create an account with any email and sign in (decision 30).
 
 ## Tabs
 
@@ -79,7 +79,8 @@ against the family's own goals, intentions and 100-Year Vision.
 | 19 | Team roster | Unchanged except Chris Callahan = Director of Relationship Management. Matthew Sullivan = Associate Advisor I. Domnic Davenport = Investment Planning Associate. Headshots extracted from the reference decks ship in `public/headshots/`; Settings → Team roster can replace any of them. |
 | 21 | Case studies | Tool suggests by archetype; planner picks. |
 | 22 | Deployment | Supabase project `khpddtxiyacrivlliwdw` (schema applied 14 Sep 2026). Hosting on GitHub Pages from the repo workflow. Cloudflare Worker still needed for Claude. |
-| 27 | Access | Shared team passcode gate before login (SHA-256 in `src/lib/passcode.jsx`), then paradiem.org email login. |
+| 27 | Access | Shared team passcode gate before login (SHA-256 in `src/lib/passcode.jsx`), then email + password login. |
+| 30 | Open sign-up | 1 Oct 2026: the paradiem.org-only rule was removed in the app and in the database policy (`is_paradiem()` now means any signed-in user). The passcode is the gate. |
 | 23 | Claude API | Paradiem will add an Anthropic API key (held in the Cloudflare Worker). |
 | 24 | Fonts | App uses the invest dashboard fonts (DM Sans). Exported decks use Georgia + Calibri. |
 | 25 | Duplicate slides | Under-5M p7 vs p8 and p20 vs p21 are alternatives; planner picks one of each per deck. |

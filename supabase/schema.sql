@@ -5,9 +5,10 @@
 
 create extension if not exists pgcrypto;
 
+-- Any signed-in account may use the app (changed 2026-10-01; the name is kept so the policies below still apply).
 create or replace function public.is_paradiem() returns boolean
 language sql stable security invoker set search_path = public as $$
-  select coalesce(right(lower(auth.jwt() ->> 'email'), 13) = '@paradiem.org', false);
+  select auth.uid() is not null;
 $$;
 create or replace function public.current_email() returns text
 language sql stable security invoker set search_path = public as $$

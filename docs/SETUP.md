@@ -3,7 +3,7 @@
 ## Status (14 Sep 2026)
 
 - **Supabase: DONE.** Project `khpddtxiyacrivlliwdw` holds the tables, security rules, activity log and the private `documents` bucket (applied as three migrations; `supabase/schema.sql` is the reference copy). The URL and publishable key are baked into the GitHub Pages workflow.
-- **Passcode: DONE.** The site asks for the team passcode before anything loads, then for a paradiem.org login. Settings → System → Lock app forgets the passcode on a device. To change the passcode, replace the SHA-256 in `src/lib/passcode.jsx` (`printf 'newcode' | sha256sum`).
+- **Passcode: DONE.** The site asks for the team passcode before anything loads, then for an email + password login (any email address). Settings → System → Lock app forgets the passcode on a device. To change the passcode, replace the SHA-256 in `src/lib/passcode.jsx` (`printf 'newcode' | sha256sum`).
 - **Hosting: GitHub Pages** via `.github/workflows/deploy-github-pages.yml` — see section 3b. Cloudflare Pages remains an option (section 3).
 - **Claude: NOT YET.** Needs section 2.
 
@@ -58,7 +58,7 @@ Every push to `main` redeploys automatically.
 
 ## 4. First sign-in
 
-Open the app, enter the team passcode, click **Create account** with your paradiem.org email, confirm the email, sign in. Everyone on the team does the same; everyone has the same access.
+Open the app, enter the team passcode, click **Create account** with any email address and a password, sign in. Everyone on the team does the same; everyone has the same access.
 
 Then in **Settings** check the quarterly performance numbers, the tax constants, the fee schedule, and the team roster. They ship with the values from the September 2026 decks.
 
