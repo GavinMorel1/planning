@@ -89,10 +89,11 @@ function Login() {
       if (mode === 'signup') {
         const { data, error: suErr } = await supabase.auth.signUp({ email: em, password })
         if (suErr) throw suErr
-        if (data?.session) return // confirmation is off: signed in immediately, the gate takes over
+        if (data?.session) return // signed in immediately, the gate takes over
         if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) { setError('That account already exists. Switch to Sign in.'); return }
-        setInfo('Account created. Check your inbox for the confirmation link, then sign in.')
-        setMode('signin')
+        // Accounts are confirmed automatically on creation (database trigger), so sign straight in.
+        const { error: autoErr } = await supabase.auth.signInWithPassword({ email: em, password })
+        if (autoErr) { setInfo('Account created. Sign in with the same email and password.'); setMode('signin') }
       } else {
         const { error: siErr } = await supabase.auth.signInWithPassword({ email: em, password })
         if (siErr) throw siErr

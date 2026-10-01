@@ -108,3 +108,15 @@ drop policy if exists documents_team_update on storage.objects;
 create policy documents_team_update on storage.objects for update to authenticated using (bucket_id = 'documents' and public.is_paradiem());
 drop policy if exists documents_team_delete on storage.objects;
 create policy documents_team_delete on storage.objects for delete to authenticated using (bucket_id = 'documents' and public.is_paradiem());
+
+-- No email service: every new account is confirmed on creation (applied 2026-10-01).
+-- The function lives in public because the auth schema is locked; the trigger sits on auth.users.
+create or replace function public.planning_auto_confirm() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.email_confirmed_at is null then new.email_confirmed_at := now(); end if;
+  return new;
+end $$;
+revoke execute on function public.planning_auto_confirm() from public, anon, authenticated;
+drop trigger if exists planning_auto_confirm on auth.users;
+create trigger planning_auto_confirm before insert on auth.users for each row execute function public.planning_auto_confirm();

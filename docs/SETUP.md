@@ -3,7 +3,7 @@
 ## Status (14 Sep 2026)
 
 - **Supabase: DONE.** Project `khpddtxiyacrivlliwdw` holds the tables, security rules, activity log and the private `documents` bucket (applied as three migrations; `supabase/schema.sql` is the reference copy). The URL and publishable key are baked into the GitHub Pages workflow.
-- **Passcode: DONE.** The site asks for the team passcode before anything loads, then for an email + password login (any email address). Settings → System → Lock app forgets the passcode on a device. To change the passcode, replace the SHA-256 in `src/lib/passcode.jsx` (`printf 'newcode' | sha256sum`).
+- **Passcode: DONE.** The site asks for the team passcode before anything loads, then for an email + password login (any email address). New accounts are confirmed automatically by a database trigger, so no confirmation email is needed even if the Supabase "Confirm email" toggle is on. Settings → System → Lock app forgets the passcode on a device. To change the passcode, replace the SHA-256 in `src/lib/passcode.jsx` (`printf 'newcode' | sha256sum`).
 - **Hosting: GitHub Pages** via `.github/workflows/deploy-github-pages.yml` — see section 3b. Cloudflare Pages remains an option (section 3).
 - **Claude: NOT YET.** Needs section 2.
 
