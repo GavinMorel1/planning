@@ -1,12 +1,37 @@
 import { useState } from 'react'
 import { useStore } from '../lib/store'
 import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 import { CLAUDE_ENABLED, MODEL } from '../lib/claude'
 import { Card, Eyebrow, Title, SubTabs, Btn, Input, Field, Grid, Row, Note, TextArea, Pill, Confirm } from '../components/ui'
 import { DEFAULT_SETTINGS, DEFAULT_ROSTER } from '../data/defaults'
 import { download } from '../lib/util'
 import { lockApp } from '../lib/passcode'
 
+// Change the signed-in account's password (there is no email service, so no reset links).
+function ChangePassword({ C }) {
+  const [pw, setPw] = useState(''); const [pw2, setPw2] = useState(''); const [msg, setMsg] = useState(null); const [busy, setBusy] = useState(false)
+  const save = async () => {
+    setMsg(null)
+    if (pw.length < 8) return setMsg({ ok: false, t: 'Use at least 8 characters.' })
+    if (pw !== pw2) return setMsg({ ok: false, t: 'The two entries do not match.' })
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ password: pw })
+    setBusy(false)
+    if (error) setMsg({ ok: false, t: error.message }); else { setMsg({ ok: true, t: 'Password changed. Use it next time you sign in.' }); setPw(''); setPw2('') }
+  }
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.t3, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 }}>Change password</div>
+      <Row gap={8}>
+        <Input C={C} type="password" value={pw} onChange={setPw} placeholder="New password" autoComplete="new-password" style={{ maxWidth: 220 }} />
+        <Input C={C} type="password" value={pw2} onChange={setPw2} placeholder="Repeat it" autoComplete="new-password" style={{ maxWidth: 220 }} />
+        <Btn C={C} small primary disabled={busy || !pw} onClick={save}>{busy ? '…' : 'Save'}</Btn>
+      </Row>
+      {msg && <div style={{ fontSize: 12, marginTop: 6, color: msg.ok ? C.up : C.dn }}>{msg.t}</div>}
+    </div>
+  )
+}
 const rosterPhoto = (p) => { const src = p.photo || DEFAULT_ROSTER.find((d) => d.name === p.name)?.photo; return src ? (src.startsWith('data:') ? src : `${import.meta.env.BASE_URL || '/'}${src}`) : '' }
 // Resize an uploaded headshot to a small PNG data URL (settings are stored as one JSON document)
 async function shrinkImage(file, maxH) {
@@ -120,6 +145,7 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
             <div style={{ fontSize: 12.5, color: C.t3, marginBottom: 10 }}>{localMode ? 'Local mode: no login, data lives in this browser only.' : `Signed in as ${email}`}</div>
             <Row>{['dark', 'light'].map((t) => <Btn key={t} C={C} small primary={themeName === t} onClick={() => setThemeName(t)}>{t === 'dark' ? 'Dark' : 'Light'}</Btn>)}{!localMode && <Btn C={C} small ghost onClick={signOut}>Sign out</Btn>}<Btn C={C} small danger onClick={lockApp}>Lock app</Btn></Row>
             <div style={{ fontSize: 11, color: C.t4, marginTop: 8 }}>Lock app forgets the team passcode on this device.</div>
+            {!localMode && <ChangePassword C={C} />}
           </Card>
           <Card C={C}>
             <Eyebrow C={C}>Integrations</Eyebrow>
