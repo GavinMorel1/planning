@@ -8,6 +8,7 @@ export const DEFAULT_FEE_SCHEDULE = {
     { upTo: 1000000, rate: 1.5 }, { upTo: 5000000, rate: 1.25 }, { upTo: 10000000, rate: 1.0 },
     { upTo: 30000000, rate: 0.75 }, { upTo: Infinity, rate: 0.5 },
   ],
+  expenseRatio: 0.05, // % in addition to the advisory fee (Our Fees slide)
   note: 'Confirm current rates with Compliance before quoting.',
 }
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
@@ -20,7 +21,17 @@ export function blueprintMonthly(netWorth, year = 1, fs = DEFAULT_FEE_SCHEDULE) 
   const raw = (Number(netWorth) || 0) * t.bps / 10000 / 12
   return Math.round(clamp(raw, t.minMo, t.maxMo) / 50) * 50
 }
+// Settings are stored as JSON, which turns Infinity into null: treat a missing ceiling as unlimited.
+export const aumTiers = (fs = DEFAULT_FEE_SCHEDULE) => fs.aum.map((t) => ({ ...t, upTo: t.upTo == null || t.upTo === Infinity ? Infinity : t.upTo }))
 export function aumRate(assets, fs = DEFAULT_FEE_SCHEDULE) {
-  const a = Number(assets) || 0
-  return (fs.aum.find((t) => a <= t.upTo) || fs.aum[fs.aum.length - 1]).rate
+  const a = Number(assets) || 0, tiers = aumTiers(fs)
+  return (tiers.find((t) => a <= t.upTo) || tiers[tiers.length - 1]).rate
+}
+
+// Blended advisory rate on AUM, marginal by tier (First $1M at 1.50%, next $4M at 1.25% ...), in %.
+export function blendedAumRate(assets, fs = DEFAULT_FEE_SCHEDULE) {
+  const a = Number(assets) || 0; if (a <= 0) return 0
+  let prev = 0, fee = 0
+  for (const t of aumTiers(fs)) { const slice = Math.min(a, t.upTo) - prev; if (slice > 0) fee += slice * t.rate / 100; prev = t.upTo; if (a <= t.upTo) break }
+  return (fee / a) * 100
 }
