@@ -39,20 +39,26 @@ against the family's own goals, intentions and 100-Year Vision.
    Claude; the team corrects it over time.
 7. **Priorities** — ranked plan for the active family. Tiers: Protect,
    Deadline-driven, Structural, Optimize, Legacy.
-8. **Estate Flow** — free-form flow-chart editor: boxes anywhere, connectors
+8. **Work** — per-family projects and tasks, monday.com style: table (grouped by
+   project) and board (drag between status columns) views, owner, status, due date,
+   priority, notes, subtasks, comments and files (uploaded, or attached by reference
+   from the family's Documents). Summary strip (open, overdue, due in 7 days, done
+   this month, % complete), filters, "Start from template" (standard engagement) and
+   "Import accepted tools" (from Priorities). Shared live between teammates.
+9. **Estate Flow** — free-form flow-chart editor: boxes anywhere, connectors
    between any anchor points, labels on connectors, free text anywhere, solid
    asset-flow lines, horizontal dashed timing separators (life / first death /
    second death). Goes into the Gap Analysis deck as **editable PowerPoint
    shapes** (and downloads as a single .pptx slide), with optional PowerPoint
    build animation configured in the tab. PNG/SVG exports remain. Current chart
    only. Numbering follows the **older spouse passing first**.
-9. **Cashflow** — eMoney is the cash-flow engine; the tool reads exported eMoney
+10. **Cashflow** — eMoney is the cash-flow engine; the tool reads exported eMoney
    reports and summarises them. (Sample export still to be provided.)
-10. **Presentations** — generated decks per family, version history, PPTX.
-11. **Calendar** — family-specific deadlines (QOF 180-day, 1031 windows, Roth
+11. **Presentations** — generated decks per family, version history, PPTX.
+12. **Calendar** — family-specific deadlines (QOF 180-day, 1031 windows, Roth
     conversion, annual exclusion gifts, QCDs, document review cadence).
-12. **Research** — markdown memo library (same pattern as invest dashboard).
-13. **Settings** — team roster, quarterly performance numbers, yearly tax
+13. **Research** — markdown memo library (same pattern as invest dashboard).
+14. **Settings** — team roster, quarterly performance numbers, yearly tax
     constants, fee schedule, integration status, theme.
 
 ## Decisions log
@@ -81,6 +87,7 @@ against the family's own goals, intentions and 100-Year Vision.
 | 22 | Deployment | Supabase project `khpddtxiyacrivlliwdw` (schema applied 14 Sep 2026). Hosting on GitHub Pages from the repo workflow. Cloudflare Worker still needed for Claude. |
 | 27 | Access | Shared team passcode gate before login (SHA-256 in `src/lib/passcode.jsx`), then email + password login. |
 | 30 | Open sign-up | 1 Oct 2026: the paradiem.org-only rule was removed in the app and in the database policy (`is_paradiem()` now means any signed-in user). The passcode is the gate. |
+| 31 | Work tab | 27 Oct 2026: per-family projects and tasks live in table `work_items` (one row per project/task, JSON `data`, row-level security as `families`, Realtime on, activity log trigger), not inside the family document, so teammates' edits merge row by row. Migration `supabase/migrations/20261027_work_items.sql` (also appended to `schema.sql`); until it is applied the tab shows a one-time-setup note. Local mode keeps work in localStorage (`paradiem_planning_work_v1`). Task files are uploads to the `documents` bucket or references to a family document (same storage key; removing a reference never deletes the document). The template and the tool-import rules are constants at the top of `src/lib/work.js`. |
 | 23 | Claude API | Paradiem will add an Anthropic API key (held in the Cloudflare Worker). |
 | 24 | Fonts | App uses the invest dashboard fonts (DM Sans). Exported decks use Georgia + Calibri. |
 | 25 | Duplicate slides | Under-5M p7 vs p8 and p20 vs p21 are alternatives; planner picks one of each per deck. |

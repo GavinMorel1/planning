@@ -5,6 +5,8 @@ import { familyFlags, FLAG_LABELS } from '../lib/flags'
 import { daysUntil, fmtDate, fmtUsd } from '../lib/util'
 import { netWorthOf } from './Families'
 import { TIERS } from '../data/tools'
+import { useAuth } from '../lib/auth'
+import { useWork, isOverdue, shortDate } from '../lib/work'
 
 export default function Desk({ C, isDesktop, setTab }) {
   const { families, setActive, settings } = useStore()
@@ -37,6 +39,7 @@ export default function Desk({ C, isDesktop, setTab }) {
           <Card key={l} C={C}><Eyebrow C={C}>{l}</Eyebrow><div style={{ fontSize: 28, fontWeight: 800, color: C.t1 }}>{v}</div></Card>
         ))}
       </Grid>
+      <MyTasks C={C} setTab={setTab} />
       {!items.length ? (
         <Empty C={C} icon="✓" title="All clear" action={!families.length && <Btn C={C} primary onClick={() => setTab('families')}>Add a family</Btn>}>Missing protection documents, deadlines inside 90 days, pending recommendations and un-analysed goals will show here across every family.</Empty>
       ) : items.map((it, i) => (
@@ -51,5 +54,30 @@ export default function Desk({ C, isDesktop, setTab }) {
         </Card>
       ))}
     </div>
+  )
+}
+
+// Compact "My open tasks" card for the active family (owner === signed-in email). Hidden when there is nothing to show.
+function MyTasks({ C, setTab }) {
+  const { family } = useStore()
+  const { email } = useAuth()
+  const W = useWork(family?.id || null)
+  const me = String(email || '').toLowerCase()
+  if (!family || !me || W.missingTable || !W.ready) return null
+  const mine = W.tasks.filter((t) => t.status !== 'done' && String(t.owner).toLowerCase() === me).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))
+  if (!mine.length) return null
+  return (
+    <Card C={C} accent style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+        <Eyebrow C={C} style={{ marginBottom: 0 }}>My open tasks · {family.name}</Eyebrow>
+        <Btn C={C} small ghost onClick={() => setTab('work')}>Open Work{mine.length > 5 ? ` (${mine.length})` : ''}</Btn>
+      </div>
+      {mine.slice(0, 5).map((t) => (
+        <div key={t.id} onClick={() => setTab('work')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: `1px solid ${C.border}`, cursor: 'pointer' }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: C.t1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title || 'Untitled task'}</span>
+          {t.due && <span style={{ fontSize: 11.5, fontWeight: isOverdue(t) ? 800 : 500, color: isOverdue(t) ? C.dn : C.t3, whiteSpace: 'nowrap' }}>{shortDate(t.due)}</span>}
+        </div>
+      ))}
+    </Card>
   )
 }
