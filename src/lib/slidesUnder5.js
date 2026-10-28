@@ -75,6 +75,8 @@ const LENS = [
   { t: 'Inspiration', q: ['Driven by legacy purpose contributing to', 'human flourishing?'], note: ['A meaningful share carry exposure to activities', 'facing long-term structural headwinds.'] },
   { t: 'Infrastructure', q: ['Built on a solid foundation of sound business', 'practices and structure?'], note: ['Most holdings rest on durable balance sheets and', 'disciplined governance.'] },
 ]
+// The updated $5M+ Assessment words the Inspiration question differently from the under-$5M deck.
+const lensQ = (i, over5, compare) => (i === 1 && over5 ? (compare ? ['Driven by long-term vision, not distracted by', 'activities that face long-term structural', 'headwinds?'] : ['Driven by long-term vision, not distracted by', 'the issue of the day?']) : LENS[i].q)
 const scoreW = (str, pt) => (String(str).replace(/[^0-9]/g, '').length * 0.235 + String(str).replace(/[^.]/g, '').length * 0.17) * (pt / 28.6)
 const lensHead = (s, pptx, sub = true) => {
   eyebrow(s, 'Think like an owner', { x: 0.52, y: 0.42, w: 5, h: 0.2, fontSize: 11, bold: true, color: GOLD2 })
@@ -84,21 +86,21 @@ const lensHead = (s, pptx, sub = true) => {
   T(s, 'Illustrative scorecard for discussion. Each holding is scored across the three ownership criteria; figures shown are representative.', 0.52, 4.91, 7, { fontSize: 6.7, italic: true, color: '8A8A82' })
 }
 const lensCard = (s, pptx, x, y, h) => { rect(s, pptx, x, y, 2.78, h, 'FBFAF6', st('E7E3D8', 1)); rect(s, pptx, x, y, 2.78, 0.05, '1A2340') }
-export function lensSingle(pptx, sc = {}) {
+export function lensSingle(pptx, sc = {}, over5 = false) {
   const s = whiteBase(pptx, { foot: true, footSize: 'md', footLeft: INVEST_FOOT })
   lensHead(s, pptx)
   ;['innovation', 'inspiration', 'infrastructure'].forEach((k, i) => {
     const x = [0.52, 3.60, 6.68][i], L = LENS[i], v = num(sc[k]), txt = sc[k] ? String(sc[k]) : '—'
     lensCard(s, pptx, x, 2.08, 2.51)
     T(s, L.t, x + 0.21, 2.31, 2.4, { fontFace: H, fontSize: 15.7, bold: true, color: '1A2340' })
-    L.q.forEach((ln, k2) => T(s, ln, x + 0.21, 2.65 + k2 * 0.15, 2.5, { fontSize: 9, italic: true, color: '6A6A6A' }))
+    lensQ(i, over5, false).forEach((ln, k2) => T(s, ln, x + 0.21, 2.65 + k2 * 0.15, 2.5, { fontSize: 9, italic: true, color: '6A6A6A' }))
     T(s, txt, x + 0.21, 3.18, 1.2, { fontFace: H, fontSize: 28.6, bold: true, color: '1A2340' })
     T(s, '/ 10', x + 0.21 + scoreW(txt, 28.6), 3.43, 0.4, { fontSize: 10.6, bold: true, color: GOLD2 })
     rect(s, pptx, x + 0.21, 3.72, 2.35, 0.12, 'EFE7E2'); if (v > 0) rect(s, pptx, x + 0.21, 3.72, 2.35 * Math.min(1, v / 10), 0.12, GOLD2)
     L.note.forEach((ln, k2) => T(s, ln, x + 0.21, 3.95 + k2 * 0.13, 2.5, { fontSize: 7.9, color: '6A6A6A' }))
   })
 }
-export function lensCompare(pptx, cur = {}, prop = {}) {
+export function lensCompare(pptx, cur = {}, prop = {}, over5 = false) {
   const s = whiteBase(pptx, { foot: true, footSize: 'md', footLeft: INVEST_FOOT })
   lensHead(s, pptx)
   const block = (label, y0, sc, withDesc) => {
@@ -110,7 +112,7 @@ export function lensCompare(pptx, cur = {}, prop = {}) {
       T(s, txt, x + 2.29 - scoreW(txt, 21), y0 + 0.19, 0.8, { fontFace: H, fontSize: 21, bold: true, color: '1A2340' })
       T(s, '/ 10', x + 2.29, y0 + 0.35, 0.4, { fontSize: 10.6, bold: true, color: GOLD2 })
       rect(s, pptx, x + 0.22, y0 + 0.64, 2.35, 0.12, 'EFE7E2'); if (v > 0) rect(s, pptx, x + 0.22, y0 + 0.64, 2.35 * Math.min(1, v / 10), 0.12, GOLD2)
-      if (withDesc) L.q.forEach((ln, k2) => T(s, ln, x + 0.22, y0 + 0.85 + k2 * 0.15, 2.5, { fontSize: 9, italic: true, color: '6A6A6A' }))
+      if (withDesc) lensQ(i, over5, true).forEach((ln, k2) => T(s, ln, x + 0.22, y0 + 0.85 + k2 * 0.15 - (over5 && i === 1 ? 0.03 : 0), 2.5, { fontSize: 9, italic: true, color: '6A6A6A' }))
     })
   }
   block('Current portfolio', 1.94, cur, true)
@@ -174,7 +176,8 @@ export function dividendStats(pptx, perf) {
   const p = perf?.dividend; if (!p) return
   const s = whiteBase(pptx, { foot: true, footSize: 'sm' })
   eyebrow(s, 'Simplicity over complexity', { x: 0.19, y: 0.11, w: 5, h: 0.2, fontSize: 11, bold: true, color: GOLD2, charSpacing: 2.5 })
-  T(s, `${p.name} Returns & Statistics`, 0.30, 0.32, 8, { fontFace: H, fontSize: 18, color: B.navy })
+  if (kit.logoSmall) s.addImage({ data: kit.logoSmall, x: 8.50, y: 0.29, w: 1.16, h: 0.34 })
+  T(s, `${p.name} Returns & Statistics`, kit.logoSmall ? 0.91 : 0.30, 0.32, 8, { fontFace: H, fontSize: 18, color: B.navy })
   hline(s, pptx, 0, 0.65, 10, B.tileBorder, 0.5); hline(s, pptx, 0.35, 0.68, 0.85, B.gold, 1.5)
   const asOf = perf.asOf ? new Date(`${perf.asOf}T00:00:00`).toLocaleDateString('en-US') : ''
   T(s, `ANNUALISED RETURNS (AS OF ${asOf})`, 0.30, 0.75, 6, { fontSize: 10, color: B.text, charSpacing: 3 })
@@ -256,11 +259,12 @@ export function pies(pptx, a) {
   const labels = ['Stocks', 'Bonds', 'Cash', 'Other'], keys = ['stocks', 'bonds', 'cash', 'other'], colors = [N2, B.gold, 'A8A496', 'D5D2C6']
   ;[[0.40, cur], [5.20, pot]].forEach(([x, d]) => {
     s.addShape(pptx.ShapeType.roundRect, { x, y: 1.82, w: 4.10, h: 3.10, fill: { color: B.bg }, line: { color: B.bg, width: 0 }, rectRadius: 0.12 })
-    const idx = keys.map((k, i) => i)
+    const showOther = num(cur.other) > 0 || num(pot.other) > 0
+    const idx = keys.map((k, i) => i).filter((i) => i < 3 || showOther)
     if (!idx.some((i) => num(d[keys[i]]) > 0)) return
     s.addChart(pptx.ChartType.pie, [{ name: 'Allocation', labels: idx.map((i) => labels[i]), values: idx.map((i) => num(d[keys[i]])) }], {
       x: x + 0.05, y: 1.84, w: 4.0, h: 3.06, layout: { x: 0.19, y: 0.05, w: 0.62, h: 0.80 }, chartColors: idx.map((i) => colors[i]), showLegend: true, legendPos: 'b', legendFontFace: F, legendFontSize: 10, legendColor: INK2,
-      showPercent: true, showValue: false, showLabel: false, showTitle: false, dataLabelPosition: 'outEnd', dataLabelFontFace: H, dataLabelFontSize: 14, dataLabelFontBold: true, dataLabelColor: '000000', dataLabelFormatCode: '0.##%;-0.##%;', dataBorder: { pt: 0, color: 'FFFFFF' },
+      showPercent: true, showValue: false, showLabel: false, showTitle: false, dataLabelPosition: 'outEnd', dataLabelFontFace: H, dataLabelFontSize: 14, dataLabelFontBold: true, dataLabelColor: '000000', dataLabelFormatCode: '0%;-0%;', dataBorder: { pt: 0, color: 'FFFFFF' },
     })
   })
 }

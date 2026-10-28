@@ -7,6 +7,7 @@ import { Card, Eyebrow, Title, SubTabs, Btn, Input, Field, Grid, Row, Note, Text
 import { DEFAULT_SETTINGS, DEFAULT_ROSTER } from '../data/defaults'
 import { download } from '../lib/util'
 import { lockApp } from '../lib/passcode'
+import PerformanceEditor from '../components/PerformanceEditor'
 
 // Change the signed-in account's password (there is no email service, so no reset links).
 function ChangePassword({ C }) {
@@ -53,7 +54,7 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
       <Title C={C} isDesktop={isDesktop} sub="Shared by the whole team. Changes flow into every deck the next time it is generated.">Settings</Title>
       <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'performance', label: 'Quarterly performance' }, { id: 'tax', label: 'Tax constants' }, { id: 'fees', label: 'Fee schedule' }, { id: 'roster', label: 'Team roster' }, { id: 'firm', label: 'Firm averages' }, { id: 'system', label: 'System' }]} />
 
-      {sub === 'performance' && <Performance C={C} isDesktop={isDesktop} settings={settings} updateSettings={updateSettings} />}
+      {sub === 'performance' && <PerformanceEditor C={C} settings={settings} updateSettings={updateSettings} />}
 
       {sub === 'tax' && (() => {
         const years = Object.keys(settings.tax || {}).sort()
@@ -171,50 +172,6 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
           </Card>
         </Grid>
       )}
-    </div>
-  )
-}
-
-function Performance({ C, isDesktop, settings, updateSettings }) {
-  const perf = settings.performance
-  const setP = (fn) => updateSettings((s) => ({ ...s, performance: fn(structuredClone(s.performance)) }))
-  const Table = ({ sleeve, block, title }) => {
-    const b = perf[sleeve][block]; if (!b) return null
-    const rows = ['gross', 'net', ...perf[sleeve].benchmarks.map((x) => x.key)]
-    return (
-      <div style={{ marginBottom: 16 }}>
-        <Row style={{ justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.t2 }}>{title}</div>
-          <Row gap={6}>
-            <Btn C={C} small ghost onClick={() => { const c = prompt('New column label (e.g. 1-YR)'); if (!c) return; setP((p) => { p[sleeve][block].columns.push(c); rows.forEach((r) => { p[sleeve][block][r] = [...(p[sleeve][block][r] || []), null] }); return p }) }}>+ Column</Btn>
-            <Btn C={C} small ghost onClick={() => setP((p) => { p[sleeve][block].columns.pop(); rows.forEach((r) => { if (p[sleeve][block][r]) p[sleeve][block][r].pop() }); return p })}>− Column</Btn>
-          </Row>
-        </Row>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', fontSize: 12 }}>
-            <thead><tr><th style={{ textAlign: 'left', padding: 6, color: C.t4 }}></th>{b.columns.map((c, i) => <th key={i} style={{ padding: 6 }}><Input C={C} value={c} onChange={(v) => setP((p) => { p[sleeve][block].columns[i] = v; return p })} style={{ padding: '5px 6px', fontSize: 11, textAlign: 'center', fontWeight: 700 }} /></th>)}</tr></thead>
-            <tbody>{rows.map((r) => (
-              <tr key={r}><td style={{ padding: 6, color: C.t2, fontWeight: 700, textTransform: 'uppercase', fontSize: 10.5, letterSpacing: 1, whiteSpace: 'nowrap' }}>{r}</td>{b.columns.map((_, i) => <td key={i} style={{ padding: 4 }}><Input C={C} value={b[r]?.[i] ?? ''} onChange={(v) => setP((p) => { p[sleeve][block][r] = p[sleeve][block][r] || []; p[sleeve][block][r][i] = v === '' ? null : Number(v); return p })} style={{ padding: '5px 6px', fontSize: 12, textAlign: 'right' }} /></td>)}</tr>
-            ))}</tbody>
-          </table>
-        </div>
-      </div>
-    )
-  }
-  return (
-    <div>
-      <Note C={C} style={{ marginBottom: 14 }}>Enter the audited results after each quarter. Values are percentages. Blank cells print as blank. Add year columns to Growth as its track record grows.</Note>
-      <Card C={C} style={{ marginBottom: 14 }}>
-        <Row style={{ justifyContent: 'space-between' }}><Eyebrow C={C} style={{ marginBottom: 0 }}>As of</Eyebrow><Input C={C} type="date" value={perf.asOf} onChange={(v) => setP((p) => { p.asOf = v; return p })} style={{ width: 180 }} /></Row>
-      </Card>
-      {['dividend', 'growth'].map((sleeve) => (
-        <Card key={sleeve} C={C} style={{ marginBottom: 14 }}>
-          <Field C={C} label="Strategy name"><Input C={C} value={perf[sleeve].name} onChange={(v) => setP((p) => { p[sleeve].name = v; return p })} style={{ marginBottom: 12 }} /></Field>
-          <Table sleeve={sleeve} block="annualized" title="Annualized returns" />
-          {perf[sleeve].calendar ? <Table sleeve={sleeve} block="calendar" title="Calendar year returns" /> : <Btn C={C} small ghost onClick={() => setP((p) => { p[sleeve].calendar = { columns: [String(new Date().getFullYear() - 1)], gross: [null], net: [null] }; p[sleeve].benchmarks.forEach((b) => { p[sleeve].calendar[b.key] = [null] }); return p })}>+ Add calendar-year table</Btn>}
-          <Field C={C} label="Disclosure" style={{ marginTop: 10 }}><TextArea C={C} rows={3} value={perf[sleeve].disclosure} onChange={(v) => setP((p) => { p[sleeve].disclosure = v; return p })} style={{ fontSize: 11 }} /></Field>
-        </Card>
-      ))}
     </div>
   )
 }

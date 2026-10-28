@@ -7,6 +7,7 @@ import { Card, Eyebrow, Title, Btn, Input, Field, Grid, Row, Note, Pill, Check, 
 import { fmtUsd, num, download, nowIso, uid } from '../lib/util'
 import { netWorthOf } from './Families'
 import { familyFlags } from '../lib/flags'
+import PerformanceEditor from '../components/PerformanceEditor'
 
 const SLIDES_U5 = [
   ['matthew25', 'Matthew 25 parable (2 slides)'], ['income', 'Income · Clarity · Protection'], ['inspiration', 'Inspiration partners'],
@@ -25,7 +26,7 @@ async function logoToData(file, maxW = 420) {
 }
 
 export default function Assessment({ C, isDesktop, setTab }) {
-  const { settings } = useStore()
+  const { settings, updateSettings } = useStore()
   const [f, patch] = useFamily()
   const [busy, setBusy] = useState(false)
   const [sub, setSub] = useState('cover')
@@ -44,6 +45,8 @@ export default function Assessment({ C, isDesktop, setTab }) {
   const gapFeeCalc = gapFee(nw, fs)
   const aum = num(a.feeAum) || total
   const slideOn = (k) => a.slides?.[k] !== false
+  const goalsMet = (f.goals || []).filter((g) => g.status === 'met').length, goalsMissed = (f.goals || []).filter((g) => g.status === 'missed').length
+  const goalsCost = (f.goals || []).reduce((t, g) => t + (g.status === 'missed' ? num(g.cost?.amount) : 0), 0)
   const setSlide = (k, v) => set('slides', { ...(a.slides || {}), [k]: v })
   const values = a.values || { funds: 10, categories: [] }
   const convictions = a.convictions || []
@@ -61,7 +64,7 @@ export default function Assessment({ C, isDesktop, setTab }) {
   }
 
   const money = (label, key, ph, hint) => <Field C={C} label={label} hint={hint}><Input C={C} value={a[key]} onChange={(v) => set(key, v)} placeholder={ph} /></Field>
-  const tabs = [{ id: 'cover', label: 'Cover & numbers' }, { id: 'portfolio', label: 'Portfolio' }, { id: 'performance', label: 'Performance & risk' }, ...(under ? [{ id: 'owner', label: 'Think like an owner' }] : []), { id: 'close', label: 'Fees & close' }]
+  const tabs = [{ id: 'cover', label: 'Cover & numbers' }, { id: 'owner', label: 'Think like an owner' }, { id: 'portfolio', label: 'Portfolio & cash' }, { id: 'performance', label: 'Performance & risk' }, { id: 'quarterly', label: 'Quarterly returns' }, { id: 'close', label: 'Gap summary, fees & close' }]
 
   return (
     <div>
@@ -90,7 +93,7 @@ export default function Assessment({ C, isDesktop, setTab }) {
           <Card C={C}>
             <Eyebrow C={C}>Cover</Eyebrow>
             <Grid cols={2} gap={10}>
-              <Field C={C} label="Presentation date"><Input C={C} type="date" value={a.date} onChange={(v) => set('date', v)} /></Field>
+              <Field C={C} label="Presentation date" hint={under ? '' : 'Prints as "Presented | March 3rd, 2026"'}><Input C={C} type="date" value={a.date} onChange={(v) => set('date', v)} /></Field>
               <Field C={C} label="Cover name line" hint='Prints under the title. Blank = spouse names. e.g. "Mr. and Mrs. Abrams"'><Input C={C} value={a.coverName} onChange={(v) => set('coverName', v)} placeholder="Mr. and Mrs. ______" /></Field>
               <Field C={C} label="Family short name" hint='Used in "NAME Family Capital Assessment" titles'><Input C={C} value={a.familyShort} onChange={(v) => set('familyShort', v)} placeholder={(f.name || '').replace(/^The /, '').replace(/ Family$/, '')} /></Field>
             </Grid>
@@ -145,12 +148,16 @@ export default function Assessment({ C, isDesktop, setTab }) {
               <Field C={C} label="Cash on hand (yr 1)"><Input C={C} value={a.cashOnHand} onChange={(v) => set('cashOnHand', v)} placeholder="7668" /></Field>
               <Field C={C} label="Growth % / yr"><Input C={C} value={a.cashGrowthPct} onChange={(v) => set('cashGrowthPct', v)} placeholder="0" /></Field>
             </Grid>
-            {under && <div style={{ fontSize: 11.5, color: C.t4, marginTop: 8 }}>With no retirement cash need entered, the cards use the income figure (Cover tab) as the yearly need.</div>}
+            <SectionLabel C={C}>Years 2 to 5, typed in</SectionLabel>
+            <Grid cols={4} gap={10}>
+              {[2, 3, 4, 5].map((y) => <Field key={y} C={C} label={`Year ${y} $`}><Input C={C} value={a[`cashYear${y}`]} onChange={(v) => set(`cashYear${y}`, v)} placeholder={a.retirementCashNeed ? String(Math.round(num(a.retirementCashNeed) * Math.pow(1 + num(a.cashGrowthPct) / 100, y - 1))) : ''} /></Field>)}
+            </Grid>
+            <div style={{ fontSize: 11.5, color: C.t4, marginTop: 8 }}>Type each year's cash need to print exactly what you enter, for example 129000 prints as $129K. Leave a year blank to use the retirement need grown by the Growth % above. With no retirement need entered, the income figure is used.</div>
           </Card>
-          {under && (
+          {(
             <Card C={C}>
               <Eyebrow C={C}>Ownership pies · current portfolio</Eyebrow>
-              <Check C={C} checked={slideOn('pies')} onChange={(v) => setSlide('pies', v)} label="Include the Ownership Allocation slide" />
+              {under && <Check C={C} checked={slideOn('pies')} onChange={(v) => setSlide('pies', v)} label="Include the Ownership Allocation slide" />}
               <Grid cols={4} gap={10} style={{ marginTop: 10 }}>
                 {['stocks', 'bonds', 'cash', 'other'].map((k) => <Field key={k} C={C} label={`${k} %`}><Input C={C} value={a.currentAlloc?.[k]} onChange={(v) => set('currentAlloc', { ...(a.currentAlloc || {}), [k]: v })} placeholder="0" /></Field>)}
               </Grid>
@@ -170,13 +177,13 @@ export default function Assessment({ C, isDesktop, setTab }) {
               {money('Potential annual return %', 'annualReturn', '7.68')}
               {money('Annual dividend yield %', 'dividendYield', '2.23')}
             </Grid>
-            {under && <><SectionLabel C={C}>Current portfolio (Performance Audit)</SectionLabel>
+            {<><SectionLabel C={C}>Current portfolio (Performance Audit slide)</SectionLabel>
               <Grid cols={3} gap={10}>
                 {money('Current annual return %', 'curAnnualReturn', '3.32')}
                 {money('Current dividend yield %', 'curDividendYield', '1.84')}
                 {money('Current total return %', 'curTotalReturn', '5.16')}
               </Grid>
-              <Check C={C} checked={slideOn('audit')} onChange={(v) => setSlide('audit', v)} label="Include the Performance Audit slide" /></>}
+              {under && <Check C={C} checked={slideOn('audit')} onChange={(v) => setSlide('audit', v)} label="Include the Performance Audit slide" />}</>}
           </Card>
           <Card C={C}>
             <Eyebrow C={C}>Lifeboat Drill (95% range, 6 months)</Eyebrow>
@@ -188,21 +195,28 @@ export default function Assessment({ C, isDesktop, setTab }) {
         </Grid>
       )}
 
-      {sub === 'owner' && under && (
+      {sub === 'owner' && (
         <Grid cols={isDesktop ? 2 : 1} gap={14}>
           <Card C={C}>
             <Eyebrow C={C}>Owner's lens scorecard (out of 10)</Eyebrow>
-            <Field C={C} label="Layout"><Select C={C} value={a.lensMode || 'compare'} onChange={(v) => set('lensMode', v)} options={[{ value: 'compare', label: 'Current vs proposed (one slide)' }, { value: 'single', label: 'Proposed only (one slide)' }, { value: 'both', label: 'Both slides' }]} style={{ width: '100%' }} /></Field>
-            <SectionLabel C={C}>Current portfolio</SectionLabel>
-            <Grid cols={3} gap={10}>{['innovation', 'inspiration', 'infrastructure'].map((k) => <Field key={k} C={C} label={k}><Input C={C} value={a.scorecardCurrent?.[k]} onChange={(v) => set('scorecardCurrent', { ...(a.scorecardCurrent || {}), [k]: v })} placeholder="6.6" /></Field>)}</Grid>
-            <SectionLabel C={C}>Proposed holdings</SectionLabel>
+            <div style={{ fontSize: 11.5, color: C.t4, marginBottom: 8 }}>Type a score in each box. The gold bar under it fills to that score on the slide. A blank box prints a dash and an empty bar.</div>
+            {under ? (
+              <Field C={C} label="Layout"><Select C={C} value={a.lensMode || 'compare'} onChange={(v) => set('lensMode', v)} options={[{ value: 'compare', label: 'Current vs proposed (one slide)' }, { value: 'single', label: 'Proposed only (one slide)' }, { value: 'both', label: 'Both slides' }]} style={{ width: '100%' }} /></Field>
+            ) : (<>
+              <SectionLabel C={C}>Slide 9 · An Owner's Lens (three boxes)</SectionLabel>
+              <Grid cols={3} gap={10}>{['innovation', 'inspiration', 'infrastructure'].map((k) => <Field key={k} C={C} label={k}><Input C={C} value={a.scorecardOverview?.[k]} onChange={(v) => set('scorecardOverview', { ...(a.scorecardOverview || {}), [k]: v })} placeholder="6.2" /></Field>)}</Grid>
+              <div style={{ fontSize: 11.5, color: C.t4, marginTop: 6 }}>If left empty this slide uses the proposed scores below.</div>
+            </>)}
+            <SectionLabel C={C}>{under ? 'Current portfolio' : 'Slide 10 · Current portfolio'}</SectionLabel>
+            <Grid cols={3} gap={10}>{['innovation', 'inspiration', 'infrastructure'].map((k) => <Field key={k} C={C} label={k}><Input C={C} value={a.scorecardCurrent?.[k]} onChange={(v) => set('scorecardCurrent', { ...(a.scorecardCurrent || {}), [k]: v })} placeholder="7.9" /></Field>)}</Grid>
+            <SectionLabel C={C}>{under ? 'Proposed holdings' : 'Slide 10 · Proposed holdings'}</SectionLabel>
             <Grid cols={3} gap={10}>{['innovation', 'inspiration', 'infrastructure'].map((k) => <Field key={k} C={C} label={k}><Input C={C} value={a.scorecard?.[k]} onChange={(v) => set('scorecard', { ...(a.scorecard || {}), [k]: v })} placeholder="8.8" /></Field>)}</Grid>
           </Card>
-          <Card C={C}>
+          {under && <Card C={C}>
             <Eyebrow C={C}>Optional slides</Eyebrow>
             <Grid cols={1} gap={6}>{SLIDES_U5.map(([k, l]) => <Check key={k} C={C} checked={slideOn(k)} onChange={(v) => setSlide(k, v)} label={l} />)}</Grid>
-          </Card>
-          <Card C={C}>
+          </Card>}
+          {under && <Card C={C}>
             <Eyebrow C={C}>Values screening</Eyebrow>
             <Row gap={10}><Field C={C} label="Funds screened"><Input C={C} value={values.funds} onChange={(v) => set('values', { ...values, funds: v })} placeholder="10" /></Field><Field C={C} label="Funds with any exposure"><Input C={C} value={values.flagged} onChange={(v) => set('values', { ...values, flagged: v })} placeholder="2" /></Field></Row>
             {(values.categories || []).map((c, i) => (
@@ -214,8 +228,8 @@ export default function Assessment({ C, isDesktop, setTab }) {
             ))}
             <Btn C={C} small style={{ marginTop: 10 }} onClick={() => set('values', { ...values, categories: [...(values.categories || []), { name: '', count: '' }] })}>+ Category</Btn>
             <div style={{ fontSize: 11.5, color: C.t4, marginTop: 8 }}>From the Paradiem Values Screening Report. Leave empty to skip the slide.</div>
-          </Card>
-          <Card C={C}>
+          </Card>}
+          {under && <Card C={C}>
             <Eyebrow C={C}>Conviction-based decisions (up to 4 companies)</Eyebrow>
             {convictions.map((c, i) => (
               <Row key={i} gap={8} style={{ marginTop: i ? 8 : 0 }}>
@@ -226,12 +240,26 @@ export default function Assessment({ C, isDesktop, setTab }) {
               </Row>
             ))}
             {convictions.length < 4 && <Btn C={C} small style={{ marginTop: 10 }} onClick={() => set('convictions', [...convictions, { name: '', action: 'buy' }])}>+ Company</Btn>}
-          </Card>
+          </Card>}
         </Grid>
       )}
 
+      {sub === 'quarterly' && <PerformanceEditor C={C} settings={settings} updateSettings={updateSettings} />}
+
       {sub === 'close' && (
         <Grid cols={isDesktop ? 2 : 1} gap={14}>
+          {!under && (
+            <Card C={C}>
+              <Eyebrow C={C}>Gap Analysis of Your Current Goals slide</Eyebrow>
+              <div style={{ fontSize: 11.5, color: C.t4, marginBottom: 8 }}>Counts come from the goals marked Met / Missed in the Gap Analysis tab ({goalsMet} met, {goalsMissed} missed, {fmtUsd(goalsCost)} cost of inaction). Type a number below to override any figure. The circle re-colors to match.</div>
+              <Grid cols={2} gap={10}>
+                <Field C={C} label="Goals met"><Input C={C} value={a.gapMet} onChange={(v) => set('gapMet', v)} placeholder={String(goalsMet)} /></Field>
+                <Field C={C} label="Goals missed"><Input C={C} value={a.gapMissed} onChange={(v) => set('gapMissed', v)} placeholder={String(goalsMissed)} /></Field>
+                <Field C={C} label="Total goals" hint="Blank = met + missed"><Input C={C} value={a.gapTotal} onChange={(v) => set('gapTotal', v)} placeholder={String(goalsMet + goalsMissed || (f.goals || []).length)} /></Field>
+                <Field C={C} label="Total cost of inaction $"><Input C={C} value={a.gapCost} onChange={(v) => set('gapCost', v)} placeholder={String(goalsCost)} /></Field>
+              </Grid>
+            </Card>
+          )}
           <Card C={C}>
             <Eyebrow C={C}>Next step slide</Eyebrow>
             {under && <Field C={C} label="Wording" hint="A: 100-Year Vision framing. B: Dependable income framing."><Select C={C} value={a.nextStepVariant || 'B'} onChange={(v) => set('nextStepVariant', v)} options={[{ value: 'B', label: 'B — Dependable income & protection' }, { value: 'A', label: 'A — 100-Year Vision' }]} style={{ width: '100%' }} /></Field>}
@@ -253,7 +281,7 @@ export default function Assessment({ C, isDesktop, setTab }) {
           )}
           <Card C={C}>
             <Eyebrow C={C}>Case studies</Eyebrow>
-            <div style={{ fontSize: 11.5, color: C.t4, marginBottom: 8 }}>Suggested from the family's flags. You pick.</div>
+            <Row gap={8} style={{ marginBottom: 8 }}><div style={{ fontSize: 11.5, color: C.t4 }}>Suggested from the family's flags. You pick.</div><Btn C={C} small ghost onClick={() => set('caseStudies', CASE_STUDIES.map((c) => c.id))}>Select all</Btn><Btn C={C} small ghost onClick={() => set('caseStudies', [])}>None</Btn></Row>
             {CASE_STUDIES.map((cs) => (
               <div key={cs.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: `1px solid ${C.border}` }}>
                 <Check C={C} checked={(a.caseStudies || []).includes(cs.id)} onChange={(v) => set('caseStudies', v ? [...(a.caseStudies || []), cs.id] : (a.caseStudies || []).filter((x) => x !== cs.id))} label={cs.family} />

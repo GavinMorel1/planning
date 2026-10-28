@@ -51,37 +51,24 @@ export const T = (s, str, x, y, w, o = {}) => s.addText(str, { x, y: y - 0.03, w
 export const eyebrow = (s, t, o) => text(s, String(t || '').toUpperCase(), { fontFace: F, fontSize: 11, color: B.gold, charSpacing: 3, ...o })
 export const arrow = (s, pptx, x, y, up, size = 0.19, outline) => s.addShape(up ? pptx.ShapeType.upArrow : pptx.ShapeType.downArrow, { x, y, w: size, h: size, fill: { color: up ? B.green : B.red }, line: outline ? { color: outline, width: 1 } : { color: up ? B.green : B.red, width: 0 } })
 
-// Footer strip. The reference decks use four footer styles depending on the page:
-//   lg  9pt on Assessment content pages          sm  5.3pt on cover, team and Gap pages
-//   md  6.7pt with a gold top rule (Owner's Lens) x7  7pt on the later investment pages
-// `kit.outlines` reproduces the thin black outline the source decks carry on the lg / x7 strip.
-export const kit = { footer: 'lg', outlines: true }
-const FOOT = {
-  lg: { y: 5.20, h: 0.43, fill: B.tile, size: 9, color: B.caption, cs: 2.1, x: 0.40, xr: 9.60, outline: true },
-  sm: { y: 5.25, h: 0.38, fill: B.tile, size: 5.3, color: B.caption, cs: 1.1, x: 0.34, xr: 9.66 },
-  md: { y: 5.21, h: 0.41, fill: 'ECEAE3', size: 6.7, color: '8A8A82', cs: 1.7, x: 0.52, xr: 9.46, line: 'C0A24C' },
-  x7: { y: 5.20, h: 0.43, fill: B.tile, size: 7, color: '888880', cs: 2.2, x: 0.40, xr: 9.62, outline: true },
+// Footer strip: ONE style for every slide (measured from the updated Assessment): 0.34in strip #F1EEE6,
+// 7pt Calibri #8B7355, firm name left, Registered Investment Advisor line centred, confidentiality right.
+export const kit = { outlines: true, next: null, logoSmall: null }
+export function footer(s, pptx) {
+  rect(s, pptx, 0, 5.28, W, 0.34, 'F1EEE6')
+  const t = (str, o) => s.addText(str, { y: 5.28, h: 0.34, fontFace: F, fontSize: 7, color: '8B7355', margin: 0, valign: 'middle', wrap: false, ...o })
+  t(COPY.footerLeft, { x: 0.29, w: 4, charSpacing: 2.04 })
+  t(COPY.footerCenter, { x: 3.0, w: 4.0, align: 'center' })
+  t(COPY.footerRight, { x: 5.82, w: 4.0, align: 'right', charSpacing: 2.01 })
 }
-export function footer(s, pptx, { size = kit.footer, left, color } = {}) {
-  const v = FOOT[size] || FOOT.lg
-  if (v.outline && kit.outlines) rect(s, pptx, 0, v.y, W, v.h, v.fill, { color: '000000', width: 1 })
-  else rect(s, pptx, 0, v.y, W, v.h, v.fill)
-  if (v.line) hline(s, pptx, 0, v.y, W, v.line, 0.75)
-  const col = color || v.color
-  const t = (str, o) => s.addText(str, { y: v.y, h: v.h, fontFace: F, fontSize: v.size, color: col, charSpacing: v.cs, margin: 0, valign: 'middle', wrap: false, ...o })
-  t(left || COPY.footerLeft, { x: v.x, w: 5 })
-  t(COPY.footerRight, { x: 4.6, w: v.xr - 4.6, align: 'right' })
-}
-export const INVEST_FOOT = 'PARADIEM  |  FAMILY CAPITAL INVESTMENT'
-// `kit.next` lets a caller override the next slide's background / footer without changing every slide function.
-export function base(pptx, { bg = B.bg, bar = true, foot = true, navy = false, footSize, footLeft } = {}) {
+export const INVEST_FOOT = undefined // retained so older calls compile; every slide now uses the same footer
+export function base(pptx, { bg = B.bg, bar = true, foot = true, navy = false } = {}) {
   const ov = kit.next || {}; kit.next = null
   const s = pptx.addSlide()
-  const bgc = ov.bg || bg
-  s.background = { color: navy ? B.navy : bgc }
+  s.background = { color: navy ? B.navy : (ov.bg || bg) }
   if ((ov.bar ?? bar) && !navy) rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
   if (ov.foot === false) foot = false
-  if (foot) footer(s, pptx, { size: ov.footSize || footSize || kit.footer, left: ov.footLeft || footLeft })
+  if (foot) footer(s, pptx)
   return s
 }
 // Standard content header: gold eyebrow, Georgia 26 title, rule (short gold or full-width light)
@@ -100,16 +87,28 @@ export const paras = (arr, o = {}) => (arr || []).map((t, i) => ({ text: t, opti
 export const linesFor = (t, size, w) => Math.max(1, Math.ceil(String(t || '').length / Math.max(20, Math.floor((w * 72) / (size * 0.47)))))
 
 // ───────────────────────── shared slides ─────────────────────────
-export function cover(pptx, logo, title, coupleLabel, date) {
+export function coverOld(pptx, logo, title, coupleLabel, date) {
   const s = base(pptx, { bar: false, foot: false })
   rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
-  footer(s, pptx, { size: 'sm' })
+  footer(s, pptx)
   if (logo) s.addImage({ data: logo, x: 7.07, y: 0.14, w: 2.73, h: 0.75 })
   T(s, title, 0.45, 0.89, 8, { fontFace: H, fontSize: 36.7, color: B.navy })
   T(s, coupleLabel || 'Mr. and Mrs. ________', 0.45, 2.29, 8.5, { fontFace: H, fontSize: 36.7, color: B.navy })
   hline(s, pptx, 0.45, 3.07, 1.16, B.gold, 2.5)
   T(s, COPY.tagline, 0.45, 3.23, 8, { fontSize: 18, color: B.text })
   T(s, date || '', 0.45, 4.24, 6, { fontFace: H, fontSize: 24, color: B.navy })
+}
+export const ordinalDate = (d) => { if (!d) return ''; const t = new Date(`${d}T00:00:00`); const n = t.getDate(), sfx = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'; return `${t.toLocaleDateString('en-US', { month: 'long' })} ${n}${sfx}, ${t.getFullYear()}` }
+// Updated cover: smaller logo, Georgia 27.6 title, taupe tagline, "Presented | date".
+export function cover(pptx, logo, title, coupleLabel, date) {
+  const s = base(pptx, { bar: false, bg: B.white })
+  rect(s, pptx, 0.26, 0.68, 0.05, 4.12, '171738')
+  if (logo) s.addImage({ data: logo, x: 7.52, y: 0.41, w: 2.02, h: 0.59 })
+  T(s, title, 0.67, 1.15, 8, { fontFace: H, fontSize: 27.6, color: '171738' })
+  T(s, coupleLabel || 'Mr. and Mrs. ________', 0.67, 2.17, 8.5, { fontFace: H, fontSize: 27.6, color: B.navy })
+  rect(s, pptx, 0.67, 2.81, 0.75, 0.02, B.gold)
+  T(s, COPY.tagline, 0.67, 3.05, 8, { fontSize: 11.3, color: '8B7355' })
+  T(s, date ? `Presented  |  ${ordinalDate(date)}` : 'Presented  |  ________', 0.67, 3.93, 6, { fontFace: H, fontSize: 15, color: '171738' })
 }
 export function disclosures(pptx) {
   const s = base(pptx, { bar: false })
@@ -256,7 +255,7 @@ export function principles(pptx, order = 'over5') {
 }
 export function ownersLens(pptx, sc = {}) {
   const s = pptx.addSlide(); s.background = { color: B.white }
-  footer(s, pptx, { size: 'md', left: INVEST_FOOT })
+  footer(s, pptx)
   eyebrow(s, 'Think like an owner', { x: LM, y: 0.38, w: 6, h: 0.22, fontSize: 10, bold: true })
   georgia(s, "An Owner's Lens", { x: LM, y: 0.62, w: 8, h: 0.6, fontSize: 28.6, bold: true, valign: 'middle' })
   hline(s, pptx, LM, 1.28, 1.0, B.gold, 1.5)
@@ -280,7 +279,7 @@ export function perfTable(pptx, sleeve, perf) {
   const p = perf?.[sleeve]; if (!p) return
   if (!p.calendar) return perfSingle(pptx, p, perf)
   const s = pptx.addSlide(); s.background = { color: B.white }
-  if (p.calendar) footer(s, pptx, { size: 'sm' })
+  footer(s, pptx)
   georgia(s, p.name + (p.calendar ? ' & Calendar Year Returns' : ''), { x: 0.35, y: 0.14, w: 9, h: 0.45, fontSize: 18, valign: 'middle' })
   hline(s, pptx, 0.35, 0.66, 0.9, B.gold, 1.5)
   const asOf = perf.asOf ? new Date(`${perf.asOf}T00:00:00`).toLocaleDateString('en-US') : ''
@@ -356,19 +355,20 @@ export function proposedOwnership(pptx, a, familyName) {
 }
 export function cashNeeds(pptx, a) {
   const s = pptx.addSlide(); s.background = { color: B.white }
-  footer(s, pptx, { size: 'x7', left: INVEST_FOOT })
+  footer(s, pptx)
   T(s, '5 Year Cash Needs', 0.60, 0.83, 6, { fontFace: H, fontSize: 28, color: '1C1D32' })
   rect(s, pptx, 0.50, 1.45, 1.40, 0.03, 'B2A26F')
-  const retire = num(a.retirementCashNeed), need = retire || num(a.incomeAmount) * (a.incomeUnit === '/ mo' ? 12 : 1), g = a.cashGrowthPct === '' || a.cashGrowthPct == null ? 0 : num(a.cashGrowthPct)
-  const k = (v) => `$${Math.floor(v / 1000)}K`
+  const retire = num(a.retirementCashNeed), base0 = retire || num(a.incomeAmount) * (a.incomeUnit === '/ mo' ? 12 : 1), g = a.cashGrowthPct === '' || a.cashGrowthPct == null ? 0 : num(a.cashGrowthPct)
+  const k = (v) => (Math.abs(v) >= 1000 ? `$${Math.round(v / 1000)}K` : `$${Math.round(v)}`)
   const lab = (txt, val, y) => s.addText([{ text: `${txt} `, options: { color: '8C8C8C' } }, { text: val, options: { bold: true, color: '1C1D32' } }], { x: 5.30, y: y - 0.03, w: 4.3, h: 0.25, margin: 0, valign: 'top', wrap: false, fontFace: F, fontSize: 13 })
   lab('Retirement Cash Need:', retire ? k(retire) : 'N/A', 0.63); lab('Year 1 Cash on Hand:', num(a.cashOnHand) ? k(num(a.cashOnHand)) : '$—', 1.03)
-  const yr = new Date().getFullYear()
+  const yr = (a.date ? new Date(`${a.date}T00:00:00`).getFullYear() : new Date().getFullYear())
   for (let i = 0; i < 4; i++) {
     const x = [0.50, 2.88, 5.26, 7.64][i], y = [1.75, 1.67, 1.62, 1.54][i], w = 2.20, h = 5.00 - y
+    const manual = num(a[`cashYear${i + 2}`]), amt = manual || (base0 ? base0 * Math.pow(1 + g / 100, i + 1) : 0)
     rect(s, pptx, x, y, w, h, B.tile, { color: 'CCCAC4', width: 0.75 })
     rect(s, pptx, x, y + 0.01, w, 0.04, '1C1E33', { color: '1C1E33', width: 1 })
-    T(s, need ? k(Math.round(need * Math.pow(1 + g / 100, i + 1))) : '—', x, 2.04, w, { fontFace: H, fontSize: 24, bold: true, color: '1B1836', align: 'center' })
+    T(s, amt ? k(amt) : '—', x, 2.04, w, { fontFace: H, fontSize: 24, bold: true, color: '1B1836', align: 'center' })
     rect(s, pptx, x + 0.62, 2.62, 0.96, 0.03, 'C9A84C', { color: 'B2A26F', width: 1 })
     T(s, `Year ${i + 2}`, x, 2.84, w, { fontSize: 12, color: '8C8C8C', align: 'center' })
     T(s, String(yr + i + 1), x, 3.21, w, { fontSize: 14, bold: true, color: B.gold, align: 'center' })
@@ -393,18 +393,20 @@ export function buyOption(pptx) {
   T(s, '*40 Months to recovery – “Bear markets may not be as ferocious as they appear”, Mark Hulbert, Wall Street Journal, March 8-9, 2014.', 4.05, 5.08, 5.96, { fontSize: 8, italic: true, color: 'A6A6A6', align: 'right' })
 }
 export function proposedPerf(pptx, a, familyName) {
-  const s = base(pptx, { bar: false, footLeft: INVEST_FOOT })
-  header(s, pptx, `${shortName({ name: familyName }) || 'The'} Family`, 'Proposed Portfolio Performance', { rule: 'full', x: 0.50 })
-  const stats = [[a.potentialReturn, 'Total Potential Return'], [a.annualReturn, 'Potential Annual Return'], [a.dividendYield, 'Annual Dividend Yield']]
-  stats.forEach(([v, l], i) => {
-    const x = [0.50, 3.65, 6.80][i], y = 1.42, w = 2.95, h = 2.35
-    rect(s, pptx, x, y, w, h, i === 0 ? B.tile3 : B.tile, { color: B.tileBorder, width: 0.75 })
-    rect(s, pptx, x, y, w, 0.06, B.navy)
-    georgia(s, v ? `${String(v).replace('%', '')}%` : '—', { x: x + 0.2, y: y + 0.3, w: w - 0.4, h: 0.7, fontSize: 30, color: i === 0 ? B.navy2 : B.navy, valign: 'middle' })
-    hline(s, pptx, x + 0.2, y + 1.2, w - 0.4, B.rule, 1)
-    georgia(s, l, { x: x + 0.2, y: y + 1.3, w: w - 0.4, h: 0.4, fontSize: 11.1, valign: 'middle' })
+  const s = base(pptx, { bar: false })
+  T(s, `${familyName ? shortName({ name: familyName }) + ' ' : ''}Family`.toUpperCase(), 0.55, 0.25, 6, { fontSize: 10.6, color: B.gold, charSpacing: 3 })
+  T(s, 'Proposed Portfolio Performance', 0.55, 0.51, 9, { fontFace: H, fontSize: 26, color: B.navy })
+  hline(s, pptx, 0.55, 1.28, 9.0, B.rule, 0.5)
+  ;[[a.potentialReturn, 'Total Potential Return'], [a.annualReturn, 'Potential Annual Return'], [a.dividendYield, 'Annual Dividend Yield']].forEach(([v, l], i) => {
+    const x = [0.50, 3.65, 6.80][i]
+    rect(s, pptx, x, 1.42, 2.95, 2.35, i === 0 ? B.tile3 : B.tile, { color: B.tileBorder, width: 0.5 })
+    rect(s, pptx, x, 1.42, 2.95, 0.06, B.navy, kit.outlines ? { color: '000000', width: 1 } : undefined)
+    T(s, v === '' || v == null ? '—' : `${String(v).replace('%', '')}%`, x + 0.20, 1.77, 2.6, { fontFace: H, fontSize: 30, color: i === 0 ? B.navy2 : B.navy })
+    hline(s, pptx, x + 0.20, 2.50, 2.55, B.rule, 0.4)
+    T(s, l, x + 0.20, 2.67, 2.6, { fontFace: H, fontSize: 11.1, color: B.navy })
   })
-  calibri(s, COPY.riskDisclosure, { x: 1.9, y: 3.9, w: 6.2, h: 1.25, fontSize: 5.2, align: 'center', lineSpacingMultiple: 1.05 })
+  const paras = String(COPY.riskDisclosure).replace(/ (The underlying data is updated)/, '\n$1').replace(/ (IMPORTANT:)/, '\n$1').split('\n')
+  s.addText(paras.map((t, i) => ({ text: t, options: { breakLine: i < paras.length - 1 } })), { x: 2.3, y: 3.9, w: 5.4, h: 1.2, margin: 0, valign: 'top', align: 'center', fontFace: F, fontSize: 4.6, color: B.text, lineSpacing: 7.2 })
 }
 export function lifeboat(pptx, a, familyName) {
   const s = base(pptx, { bar: false, footLeft: INVEST_FOOT })
@@ -462,13 +464,18 @@ export function nextStep(pptx, variant, fee, title) {
   }
 }
 const st1 = (c) => ({ color: c, width: 0.5 })
-export function gapSummary(pptx, goals, { panel = false } = {}) {
-  const total = goals.length, met = goals.filter((g) => g.status === 'met').length, missed = goals.filter((g) => g.status === 'missed').length
-  const cost = goals.reduce((sum, g) => sum + (g.status === 'missed' ? num(g.cost?.amount) : 0), 0)
+export function gapSummary(pptx, goals, { panel = false, override = {} } = {}) {
+  const has = (v) => v !== '' && v != null && !isNaN(Number(String(v).replace(/[$,]/g, '')))
+  const gMet = goals.filter((g) => g.status === 'met').length, gMissed = goals.filter((g) => g.status === 'missed').length
+  const met = has(override.met) ? num(override.met) : gMet, missed = has(override.missed) ? num(override.missed) : gMissed
+  const total = has(override.total) ? num(override.total) : (has(override.met) || has(override.missed) ? met + missed : goals.length)
+  const cost = has(override.cost) ? num(override.cost) : goals.reduce((sum, g) => sum + (g.status === 'missed' ? num(g.cost?.amount) : 0), 0)
   const s = base(pptx, { bar: false })
   header(s, pptx, 'Family Capital Gap Analysis', 'Gap Analysis of Your Current Goals', { x: 0.45, sub: "Based on today's assessment, here is where your current plan stands:" })
   if (panel) rect(s, pptx, 0.42, 1.68, 4.18, 3.05, B.tile3)
-  if (total) s.addChart(pptx.ChartType.doughnut, [{ name: 'Goals', labels: ['Met', 'Missed', 'Open'], values: [met, missed, Math.max(0, total - met - missed)] }], { x: 0.89, y: 1.72, w: 3.1, h: 3.0, holeSize: 55, chartColors: [B.green, B.redBox, B.mist], showLegend: false, showPercent: false, showValue: false, showTitle: false, showLabel: false })
+  const open = Math.max(0, total - met - missed)
+  if (total > 0) s.addChart(pptx.ChartType.doughnut, [{ name: 'Goals', labels: ['Met', 'Missed', 'Open'], values: [met, missed, open] }], { x: 0.89, y: 1.72, w: 3.1, h: 3.0, holeSize: 55, chartColors: [B.green, B.redBox, 'B8B4AC'], showLegend: false, showPercent: false, showValue: false, showTitle: false, showLabel: false, dataBorder: { pt: 0, color: 'FFFFFF' } })
+  else s.addShape(pptx.ShapeType.donut, { x: 0.89, y: 1.72, w: 3.0, h: 3.0, fill: { color: 'D9D7D0' }, line: { color: 'D9D7D0', width: 0 } })
   s.addText([{ text: String(total), options: { fontSize: 28, fontFace: H, bold: true, color: B.navy, breakLine: true } }, { text: 'Total Goals', options: { fontSize: 9, fontFace: F, color: B.text } }], { x: 0.89, y: 2.72, w: 3.1, h: 1.0, align: 'center', valign: 'middle', margin: 0 })
   const box = (y, n, label, cap, color, fill) => {
     rect(s, pptx, 5.00, y, 4.60, 1.35, fill, { color, width: 1.5 })
@@ -486,15 +493,18 @@ export function gapSummary(pptx, goals, { panel = false } = {}) {
 export function blueprint(pptx, monthly) {
   const s = base(pptx, { bar: false })
   header(s, pptx, 'The full scope of engagement', 'Family Capital Blueprint', { rule: 'full' })
-  COPY.blueprint.columns.forEach((c, i) => {
-    const x = [0.55, 3.73, 6.91][i]
-    georgia(s, c.title, { x, y: 1.45, w: 2.65, h: 0.55, fontSize: 12, color: B.navy2, align: 'center', valign: 'middle', lineSpacingMultiple: 1.2 })
-    hline(s, pptx, x, 2.10, 2.65, B.navy, 1)
+  const fresh = monthly == null // the updated Assessment layout (no fee box)
+  const cols = COPY.blueprint.columns.map((c, i) => (i === 0 && fresh ? { ...c, title: '100-Year Vision Advocacy' } : c))
+  cols.forEach((c, i) => {
+    const x = fresh ? [0.60, 3.78, 6.96][i] : [0.55, 3.73, 6.91][i], rx = fresh ? [0.65, 3.83, 7.01][i] : x, rw = fresh ? 2.55 : 2.65
+    const title = c.title.replace(/^(Preparing the (?:Family|Money)) (for the .*)$/, '$1\n$2').split('\n')
+    title.forEach((ln, q) => T(s, ln, rx, 1.46 + q * 0.25, rw, { fontFace: H, fontSize: 12, color: B.navy2, align: 'center' }))
+    hline(s, pptx, rx, 2.10, rw, B.navy, 1)
     c.items.forEach((it, k) => {
       const y = 2.22 + k * 0.46
-      rect(s, pptx, x, y, 2.65, 0.36, B.tile)
-      rect(s, pptx, x, y, 0.04, 0.36, B.navy)
-      calibri(s, it, { x: x + 0.14, y, w: 2.45, h: 0.36, fontSize: 10.6, color: B.navy, valign: 'middle' })
+      rect(s, pptx, x, y, 2.65, 0.36, B.tile, fresh ? { color: B.tileBorder, width: 0.5 } : undefined)
+      rect(s, pptx, x, y, 0.04, 0.36, B.navy, fresh && kit.outlines ? { color: '000000', width: 1 } : undefined)
+      T(s, it, x + 0.11, y + 0.12, 2.5, { fontSize: 10.6, color: B.navy })
     })
   })
   if (monthly != null) {
@@ -505,44 +515,42 @@ export function blueprint(pptx, monthly) {
 }
 export function caseStudy(pptx, cs) {
   const s = base(pptx, { bar: false })
-  eyebrow(s, 'Case study', { x: LM, y: 0.25, w: 6, h: 0.24 })
-  georgia(s, cs.family, { x: LM, y: 0.51, w: 6, h: 0.5, fontSize: 26, valign: 'middle' })
-  eyebrow(s, cs.archetype, { x: LM, y: 0.98, w: 6, h: 0.2, fontSize: 9.5 })
-  hline(s, pptx, LM, 1.28, 1.2, B.gold, 1.5)
-  eyebrow(s, 'Original situation', { x: LM, y: 1.60, w: 4, h: 0.2, fontSize: 9.5 })
-  const n = cs.situation.length, step = Math.min(0.54, 2.9 / n)
-  cs.situation.forEach((t, i) => {
-    const y = 1.9 + i * step
-    rect(s, pptx, LM, y, 0.05, 0.35, B.navy, { color: B.rule, width: 0.75 })
-    calibri(s, t, { x: LM + 0.2, y: y - 0.06, w: 4.0, h: step, fontSize: 10, color: B.navy, valign: 'middle', lineSpacingMultiple: 1.1 })
+  T(s, 'CASE STUDY', 0.55, 0.24, 6, { fontSize: 9, color: B.gold, charSpacing: 3.6 })
+  T(s, cs.family, 0.55, 0.51, 7, { fontFace: H, fontSize: 26, color: B.navy })
+  T(s, String(cs.archetype).toUpperCase(), 0.55, 1.05, 7, { fontSize: 7.6, color: B.gold, charSpacing: 2.2 })
+  hline(s, pptx, 0.55, 1.28, 1.2, B.gold, 1.5)
+  T(s, 'ORIGINAL SITUATION', 0.55, 1.60, 4, { fontSize: 7.6, color: B.gold, charSpacing: 2.2 }); T(s, 'RESULTS WITH PARADIEM', 5.10, 1.60, 4, { fontSize: 7.6, color: B.gold, charSpacing: 2.2 })
+  const items = cs.situation.map((t) => wrapText(t, 62))
+  items.forEach((lines, i) => {
+    const y = 1.86 + i * 0.54
+    rect(s, pptx, 0.55, y, 0.05, 0.32, B.rule, kit.outlines ? { color: '000000', width: 1 } : undefined)
+    s.addText(lines.map((ln, q) => ({ text: ln, options: { breakLine: q < lines.length - 1 } })), { x: 0.75, y: y + 0.08 - 0.03 - (lines.length > 1 ? 0.08 : 0), w: 4.2, h: 0.4, margin: 0, valign: 'top', wrap: false, fontFace: F, fontSize: 10, color: B.navy, lineSpacing: 12.5 })
   })
-  eyebrow(s, 'Results with Paradiem', { x: 5.10, y: 1.60, w: 4, h: 0.2, fontSize: 9.5 })
   cs.results.forEach((r, i) => {
-    const x = [5.10, 7.45][i % 2], y = [1.86, 2.86, 3.86][Math.floor(i / 2)], up = r.dir === 'up'
-    rect(s, pptx, x, y, 2.20, 0.88, up ? B.greenSoft2 : B.redSoft2, { color: up ? B.greenBorder : B.redBorder, width: 0.75 })
-    calibri(s, r.label, { x: x + 0.15, y: y + 0.08, w: 1.9, h: 0.2, fontSize: 8.5 })
-    georgia(s, r.value, { x: x + 0.15, y: y + 0.38, w: 1.5, h: 0.4, fontSize: 16, color: up ? B.green : B.red, valign: 'middle' })
-    const tw = r.value.length * 0.115 + 0.1
-    arrow(s, pptx, x + 0.15 + tw, y + 0.49, up, 0.18)
+    const x = [5.11, 7.45][i % 2], y = [1.86, 2.86, 3.86][Math.floor(i / 2)], up = r.dir === 'up'
+    rect(s, pptx, x, y, 2.20, 0.88, up ? B.greenSoft2 : B.redSoft2, { color: up ? B.greenBorder : B.redBorder, width: 0.5 })
+    T(s, r.label, x + 0.11, y + 0.16, 2, { fontSize: 8.5, color: B.text })
+    T(s, r.value, x + 0.11, y + 0.41, 1.9, { fontFace: H, fontSize: 16, color: up ? B.green : B.red })
+    arrow(s, pptx, x + 0.11 + String(r.value).length * 0.118 + 0.12, y + 0.46, up, 0.19)
   })
-  calibri(s, COPY.caseStudyFootnote, { x: LM, y: 4.86, w: 9, h: 0.2, fontSize: 7 })
+  T(s, COPY.caseStudyFootnote, 0.55, 4.97, 9, { fontSize: 7, color: B.text })
 }
+const wrapText = (t, n) => { const out = []; let cur = ''; for (const w of String(t).split(' ')) { if ((cur + ' ' + w).trim().length > n && cur) { out.push(cur); cur = w } else cur = (cur + ' ' + w).trim() } if (cur) out.push(cur); return out }
 export async function teamSlides(pptx, roster) {
   const photos = await loadHeadshots(roster)
   ;(roster || []).forEach((p, i) => { p._photo = photos[i] })
   for (const group of chunk(roster || [], 4)) {
     const s = pptx.addSlide(); s.background = { color: B.white }
-    footer(s, pptx, { size: 'sm' }); rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
+    footer(s, pptx); rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
     georgia(s, 'Your Team & Advocates', { x: 0.45, y: 0.28, w: 8, h: 0.5, fontSize: 21, valign: 'middle' })
-    hline(s, pptx, 0.45, 1.10, 1.0, B.gold, 2)
+    hline(s, pptx, 0.45, 1.15, 1.0, B.gold, 2)
     group.forEach((p, i) => {
       const x = [0.45, 2.83, 5.22, 7.60][i], y = 1.39, w = 2.14, h = 3.00
       rect(s, pptx, x, y, w, h, B.tile)
       rect(s, pptx, x, y, w, 0.06, B.navy)
       const ph = p._photo
-      if (ph) { const h = 1.36, w = Math.min(1.9, h * ph.w / ph.h); s.addImage({ data: ph.data, x: x + (2.14 - w) / 2, y: y + 0.13, w, h }) }
-      else s.addShape(pptx.ShapeType.ellipse, { x: x + 0.52, y: y + 0.25, w: 1.1, h: 1.1, fill: { color: B.white }, line: { color: B.white, width: 0 } })
-      hline(s, pptx, x + 0.35, y + 1.50, 1.45, B.gold, 1)
+      if (ph) { const h = 1.40, w = Math.min(1.9, h * ph.w / ph.h); s.addImage({ data: ph.data, x: x + (2.14 - w) / 2, y: y + 0.10, w, h }) }
+      hline(s, pptx, x + 0.23, y + 1.53, 1.69, B.gold, 2)
       georgia(s, p.name, { x: x + 0.04, y: y + 1.58, w: w - 0.08, h: 0.35, fontSize: 14.3, bold: true, align: 'center', valign: 'middle' })
       calibri(s, p.title, { x: x + 0.15, y: y + 1.95, w: w - 0.3, h: 0.7, fontSize: 12.4, align: 'center', lineSpacingMultiple: 1.2 })
     })
@@ -714,6 +722,8 @@ export const longDate = (d) => d ? new Date(`${d}T00:00:00`).toLocaleDateString(
 // Single-table performance page (25 Stock Growth Strategy). Colours and positions measured from the reference decks.
 function perfSingle(pptx, p, perf) {
   const s = pptx.addSlide(); s.background = { color: B.white }
+  footer(s, pptx)
+  if (kit.logoSmall) s.addImage({ data: kit.logoSmall, x: 8.50, y: 0.29, w: 1.16, h: 0.34 })
   const GOLD = 'BE9430', RULE = 'D0D0D0', LAB = '5C5C5C', HEAD = '808080', VAL = '1A1A1A', NEG = '9E2B2B'
   T(s, p.name, 0.41, 0.35, 8, { fontFace: H, fontSize: 18, color: '1B2A4E' })
   rect(s, pptx, 0.45, 0.84, 0.86, 0.03, GOLD)
@@ -734,6 +744,6 @@ function perfSingle(pptx, p, perf) {
   p.benchmarks.forEach((bm, i) => row(bm.label, b[bm.key] || [], 2.75 + i * 0.50, 'bm'))
   rect(s, pptx, 0.45, 3.82, 8.96, 0.02, GOLD)
   const txt = p.disclosure || ''
-  s.addText(txt, { x: 0.41, y: 4.74, w: 9.15, h: 0.75, margin: 0, valign: 'top', fontFace: 'Arial', fontSize: 5.6, color: '7A7A7A', lineSpacing: 7 })
+  s.addText(txt, { x: 0.41, y: 4.42, w: 9.15, h: 0.78, margin: 0, valign: 'top', fontFace: 'Arial', fontSize: 5.6, color: '7A7A7A', lineSpacing: 7, paraSpaceAfter: 3 })
 }
 const wrapLabel = (t) => { const w = String(t).split(' '); const out = []; let cur = ''; for (const x of w) { if ((cur + ' ' + x).trim().length > 22 && cur) { out.push(cur); cur = x } else cur = (cur + ' ' + x).trim() } if (cur) out.push(cur); return out }

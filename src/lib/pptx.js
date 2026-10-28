@@ -25,17 +25,19 @@ const {
 export const assessmentVariant = (f) => f.assessment?.variant || (f.tier === 'under5' ? 'under5' : 'over5')
 
 export async function buildAssessment(f, settings) {
-  kit.footer = 'lg'; kit.outlines = settings?.deckOutlines !== false
+  kit.logoSmall = null; kit.outlines = settings?.deckOutlines !== false
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
   pptx.author = 'Paradiem'; pptx.company = 'Paradiem, LLC'; pptx.title = `Family Capital Assessment — ${f.name}`
   const variant = assessmentVariant(f)
   if (variant === 'under5') return buildAssessmentUnder5(pptx, f, settings)
-  const logo = await logoData()
+  const [logo, smallLogo] = await Promise.all([logoData(), asDataUrl('deck/paradiem-logo-small.png')])
+  kit.logoSmall = smallLogo
   const a = f.assessment || {}
   const fs = settings.feeSchedule || DEFAULT_FEE_SCHEDULE
   const nw = num(a.clarityNetWorth) || netWorthOf(f)
-  cover(pptx, logo, 'Family Capital Assessment', a.coverName || coupleName(f), longDate(a.date))
+  const hasScores = (o) => o && ['innovation', 'inspiration', 'infrastructure'].some((k) => o[k] !== '' && o[k] != null)
+  cover(pptx, logo, 'Family Capital Assessment', a.coverName || coupleName(f), a.date)
   disclosures(pptx)
   framework(pptx, { tiles: true })
   twoKinds(pptx)
@@ -43,20 +45,24 @@ export async function buildAssessment(f, settings) {
   U.numbers4(pptx, settings, a, f, nw, true)
   philosophy(pptx)
   principles(pptx)
-  ownersLens(pptx, a.scorecard)
-  perfTable(pptx, 'dividend', settings.performance)
+  U.lensSingle(pptx, hasScores(a.scorecardOverview) ? a.scorecardOverview : a.scorecard, true)
+  U.lensCompare(pptx, a.scorecardCurrent, a.scorecard, true)
+  if (num(a.currentAlloc?.stocks) + num(a.currentAlloc?.bonds) + num(a.currentAlloc?.cash) + num(a.currentAlloc?.other) > 0 || num(a.dividendPct) + num(a.growthPct) > 0) U.pies(pptx, a)
   perfTable(pptx, 'growth', settings.performance)
+  U.dividendStats(pptx, settings.performance)
   U.ownership(pptx, a, f)
   cashNeeds(pptx, a)
   buyOption(pptx)
+  U.audit(pptx, a)
   proposedPerf(pptx, a, f.name)
   lifeboat(pptx, a, f.name)
   U.numbers4(pptx, settings, a, f, nw, true)
   const fee = num(a.gapFeeOverride) || gapFee(netWorthOf(f), fs)
   nextStep(pptx, 'nextStepOver5', fee, 'Family Capital Gap Analysis')
-  if ((f.goals || []).some((g) => g.status !== 'open')) gapSummary(pptx, f.goals)
+  gapSummary(pptx, f.goals || [], { override: { met: a.gapMet, missed: a.gapMissed, total: a.gapTotal, cost: a.gapCost } })
   blueprint(pptx)
-  for (const id of (a.caseStudies || [])) { const cs = CASE_STUDIES.find((c) => c.id === id); if (cs) caseStudy(pptx, cs) }
+  const picked = Array.isArray(a.caseStudies) && a.caseStudies.length ? a.caseStudies : []
+  for (const id of picked) { const cs = CASE_STUDIES.find((c) => c.id === id); if (cs) caseStudy(pptx, cs) }
   await teamSlides(pptx, settings.roster)
   pathForward(pptx, [['Schedule Kick-Off call for your Family Capital Gap Analysis', `${fmtUsd(fee)} Investment`], ['Provide Documents, Complete Surveys, Participate in 90-minute Initial Retreat', 'Data Gathering'], ['Receive Your Family Capital Gap Analysis', 'Estimated 2 weeks after step 2 complete']])
   return pptx.write({ outputType: 'blob' })
@@ -69,8 +75,9 @@ async function buildAssessmentUnder5(pptx, f, settings) {
   const fs = settings.feeSchedule || DEFAULT_FEE_SCHEDULE
   const nw = num(a.clarityNetWorth) || netWorthOf(f)
   const on = (k) => a.slides?.[k] !== false
+  kit.logoSmall = null
   const [icon, insp1, insp2] = await Promise.all([asDataUrl('deck/gold-bars.png'), asDataUrl('deck/inspire-insight.png'), asDataUrl('deck/bowyer-corporate-engagement.png')])
-  cover(pptx, logo, 'Family Capital Assessment', a.coverName || coupleName(f), longDate(a.date))
+  K.coverOld(pptx, logo, 'Family Capital Assessment', a.coverName || coupleName(f), longDate(a.date))
   disclosures(pptx)
   framework(pptx, { tiles: false })
   twoKinds(pptx)
@@ -108,7 +115,7 @@ async function buildAssessmentUnder5(pptx, f, settings) {
 
 // ───────────────────────── Gap Analysis deck ─────────────────────────
 export async function buildGap(f, settings) {
-  kit.footer = 'sm'
+  kit.logoSmall = null
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
   pptx.author = 'Paradiem'; pptx.company = 'Paradiem, LLC'; pptx.title = `Family Capital Gap Analysis — ${f.name}`
@@ -117,7 +124,7 @@ export async function buildGap(f, settings) {
   const gm = f.gapMeta || {}
   const goals = f.goals || []
   const tax = settings.tax?.[new Date().getFullYear()] || Object.values(settings.tax || {})[0] || {}
-  cover(pptx, logo, 'Family Capital Gap Analysis', coupleName(f), longDate(gm.date))
+  K.coverOld(pptx, logo, 'Family Capital Gap Analysis', coupleName(f), longDate(gm.date))
   disclosures(pptx)
   twoKinds(pptx)
   processSlide(pptx, 2)

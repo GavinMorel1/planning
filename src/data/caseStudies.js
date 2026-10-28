@@ -57,7 +57,7 @@ export const CASE_STUDIES = [
     ],
     results: [
       { label: 'Lifetime Income', value: '+80%', dir: 'up' }, { label: 'Lifetime Inheritance', value: '+378%', dir: 'up' },
-      { label: 'Income Taxes', value: '+48%', dir: 'up' }, { label: 'Capital Gains Taxes', value: '-68%', dir: 'down' },
+      { label: 'Income Taxes', value: '+48%', dir: 'down' }, { label: 'Capital Gains Taxes', value: '-68%', dir: 'down' },
       { label: 'Lifetime Giving', value: '+823%', dir: 'up' }, { label: 'Total Giving', value: '+1000%', dir: 'up' },
     ],
   },

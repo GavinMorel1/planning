@@ -17,16 +17,16 @@ export const DEFAULT_ROSTER = [
 
 // Quarterly audited performance. Update in Settings after each audit.
 export const DEFAULT_PERFORMANCE = {
-  asOf: '2026-06-30',
+  asOf: '2026-09-30',
   dividend: {
     name: '25 Stock Dividend Strategy',
     benchmarks: [{ key: 'DVY', label: 'iShares Select Dividend ETF (DVY)' }, { key: 'SPY', label: 'State Street S&P 500 ETF Trust (SPY)' }],
     annualized: {
       columns: ['YTD', '1-YR', '3-YR', '5-YR', '10-YR'],
-      gross: [15.15, 30.49, 22.54, 16.32, 14.37],
-      net: [14.29, 28.55, 20.72, 14.59, 12.67],
-      DVY: [12.47, 21.95, 15.61, 9.91, 10.09],
-      SPY: [10.09, 22.21, 20.48, 13.29, 15.39],
+      gross: [13.55, 17.11, 20.98, 16.73, 14.54],
+      net: [12.28, 15.37, 19.18, 14.99, 12.84],
+      DVY: [10.33, 10.83, 16.33, 9.66, 9.74],
+      SPY: [12.71, 15.71, 22.76, 13.70, 15.23],
     },
     calendar: {
       columns: ['2025', '2024', '2023', '2022', '2021'],
@@ -35,22 +35,22 @@ export const DEFAULT_PERFORMANCE = {
       DVY: [11.60, 16.24, 1.12, 1.80, 31.70],
       SPY: [17.72, 24.89, 26.18, -18.18, 28.73],
     },
-    statistics: { vs: 'iShares Select Dividend ETF (DVY)', columns: ['1-YR', '3-YR', '5-YR', '10-YR'], up: [124.81, 107.81, 111.37, 112.20], down: [88.46, 70.46, 84.56, 95.41] },
-    disclosureStats: "Paradiem, LLC is a Registered Investment Advisor. Performance is based on actual client accounts that are invested in Paradiem\u2019s Dividend strategy. Past performance is no guarantee of future results. Returns presented include the reinvestment of all income. Gross-of-fee performance includes trading expenses and custodial expenses. Net-of-fee performance includes actual account-level gross returns, less a model investment management fee. The model fee is deducted monthly from composite returns at the rate of 1/12 of Paradiem\u2019s highest annual fee tier. The highest rate of our annual fixed fee is 1.5%. The State Street SPDR S&P 500 ETF Trust (SPY) is a unit investment trust that seeks to provide investment results that, before expenses, correspond generally to the price and yield performance of the S&P 500 Index. The S&P 500 Index measures the performance of the large-capitalization sector of the U.S. equity market and consists of approximately 500 leading U.S. companies selected by S&P Dow Jones Indices. The trust seeks to achieve its objective by holding a portfolio of the common stocks that comprise the index. The iShares Select Dividend ETF fund generally will invest at least 80% of its assets in the component securities of its underlying index and in investments that have economic characteristics that are substantially identical to the component securities of its underlying index. The underlying index measures the performance of the U.S.\u2019s leading stocks by dividend yield. Risk statistics are based on gross-of-fee returns compared against the iShares Select Dividend ETF (DVY). *Strategy inception date for calculating statistics is February 1, 2012",
-    disclosure: "Paradiem, LLC is a Registered Investment Advisor. Performance is based on actual client accounts that are invested in Paradiem's Dividend strategy. Past performance is no guarantee of future results. Returns presented include the reinvestment of all income. Gross-of-fee performance includes trading expenses and custodial expenses. Net-of-fee performance includes actual account-level gross returns, less a model investment management fee. The model fee is deducted monthly from composite returns at the rate of 1/12 of Paradiem's highest annual fee tier. The highest rate of our annual fixed fee is 1.5%. The iShares Select Dividend ETF fund generally will invest at least 80% of its assets in the component securities of its underlying index and in investments that have economic characteristics that are substantially identical to the component securities of its underlying index. The underlying index measures the performance of the U.S.'s leading stocks by dividend yield.",
+    statistics: { vs: 'iShares Select Dividend ETF (DVY)', columns: ['1-YR', '3-YR', '5-YR', '10-YR'], up: [115.84, 102.17, 108.19, 109.09], down: [94.05, 84.67, 85.57, 97.10] },
+    disclosureStats: "Paradiem, LLC is a Registered Investment Advisor. Performance is based on actual client accounts that are invested in Paradiem’s Dividend strategy.\nPast performance is no guarantee of future results. Returns presented include the reinvestment of all income. Gross-of-fee performance includes trading expenses and custodial expenses. Net-of-fee performance includes actual account-level gross returns, less a model investment management fee. The model fee is deducted monthly from composite returns at the rate of 1/12 of Paradiem’s highest annual fee tier. The highest rate of our annual fixed fee is 1.5%.\nThe iShares Select Dividend ETF fund generally will invest at least 80% of its assets in the component securities of its underlying index and in investments that have economic characteristics that are substantially identical to the component securities of its underlying index. The underlying index measures the performance of the U.S.’s leading stocks by dividend yield.\nThe State Street SPDR S&P 500 ETF Trust is an exchange-traded fund (ETF) that tracks the Standard & Poor’s 500 (S&P 500) index. It does this by holding a portfolio of stocks in companies that are included in the S&P 500.",
+    disclosure: "Paradiem, LLC is a Registered Investment Advisor. Performance is based on actual client accounts that are invested in Paradiem’s Dividend strategy.\nPast performance is no guarantee of future results. Returns presented include the reinvestment of all income. Gross-of-fee performance includes trading expenses and custodial expenses. Net-of-fee performance includes actual account-level gross returns, less a model investment management fee. The model fee is deducted monthly from composite returns at the rate of 1/12 of Paradiem’s highest annual fee tier. The highest rate of our annual fixed fee is 1.5%.\nThe iShares Select Dividend ETF fund generally will invest at least 80% of its assets in the component securities of its underlying index and in investments that have economic characteristics that are substantially identical to the component securities of its underlying index. The underlying index measures the performance of the U.S.’s leading stocks by dividend yield.\nThe State Street SPDR S&P 500 ETF Trust is an exchange-traded fund (ETF) that tracks the Standard & Poor’s 500 (S&P 500) index. It does this by holding a portfolio of stocks in companies that are included in the S&P 500.",
   },
   growth: {
     name: '25 Stock Growth Strategy',
     benchmarks: [{ key: 'IUSG', label: 'iShares Core S&P U.S. Growth ETF (IUSG)' }, { key: 'SPY', label: 'State Street S&P 500 ETF Trust (SPY)' }],
     annualized: {
-      columns: ['1-MO', '3-MO', 'TR 5-MO'],
-      gross: [3.89, 28.58, 23.80],
-      net: [3.76, 28.10, 23.03],
-      IUSG: [-1.72, 21.42, 11.39],
-      SPY: [-1.03, 15.12, 8.49],
+      columns: ['1-MO', '3-MO', 'TR 8-MO'],
+      gross: [-1.52, -0.80, 22.81],
+      net: [-1.65, -1.17, 21.58],
+      IUSG: [1.78, 3.14, 14.89],
+      SPY: [-0.33, 2.38, 11.07],
     },
     calendar: null,
-    disclosure: "Paradiem, LLC is a Registered Investment Advisor. Performance is based on actual client accounts that are invested in Paradiem's Growth strategy. Past performance is no guarantee of future results. Returns presented include the reinvestment of all income. Gross-of-fee performance includes trading expenses and custodial expenses. Net-of-fee performance includes actual account-level gross returns, less a model investment management fee. The model fee is deducted monthly from composite returns at the rate of 1/12 of Paradiem's highest annual fee tier. The highest rate of our annual fixed fee is 1.5%.",
+    disclosure: "Paradiem, LLC is a Registered Investment Advisor. Performance is based on actual client accounts that are invested in Paradiem’s Growth strategy.\nPast performance is no guarantee of future results. Returns presented include the reinvestment of all income. Gross-of-fee performance includes trading expenses and custodial expenses. Net-of-fee performance includes actual account-level gross returns, less a model investment management fee. The model fee is deducted monthly from composite returns at the rate of 1/12 of Paradiem’s highest annual fee tier. The highest rate of our annual fixed fee is 1.5%.\nThe iShares Core S&P U.S. Growth ETF seeks to track an index composed of U.S. large and mid-cap companies, selected using metrics such as above-average earnings and revenue growth. The fund provides low-cost, targeted exposure to U.S. large and mid-cap growth stocks.\nThe State Street SPDR S&P 500 ETF Trust is an exchange-traded fund (ETF) that tracks the Standard & Poor’s 500 (S&P 500) index. It does this by holding a portfolio of stocks in companies that are included in the S&P 500.",
   },
 }
 
@@ -84,7 +84,8 @@ export const DEFAULT_SETTINGS = {
 // Static slide copy shared by every deck.
 export const COPY = {
   footerLeft: 'PARADIEM  |  FAMILY CAPITAL ARCHITECTURE',
-  footerRight: 'CONFIDENTIAL  —  NOT FOR DISTRIBUTION',
+  footerCenter: 'Paradiem, LLC is a Registered Investment Advisor.',
+  footerRight: 'CONFIDENTIAL — NOT FOR DISTRIBUTION',
   tagline: 'Aligning Family & Capital With a 100-Year Vision',
   disclosures: [
     'Paradiem, LLC is a Registered Investment Advisor.',
