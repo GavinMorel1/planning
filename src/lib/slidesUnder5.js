@@ -263,7 +263,7 @@ export function pies(pptx, a) {
     const idx = keys.map((k, i) => i).filter((i) => i < 3 || showOther)
     if (!idx.some((i) => num(d[keys[i]]) > 0)) return
     s.addChart(pptx.ChartType.pie, [{ name: 'Allocation', labels: idx.map((i) => labels[i]), values: idx.map((i) => num(d[keys[i]])) }], {
-      x: x + 0.05, y: 1.84, w: 4.0, h: 3.06, layout: { x: 0.19, y: 0.05, w: 0.62, h: 0.80 }, chartColors: idx.map((i) => colors[i]), showLegend: true, legendPos: 'b', legendFontFace: F, legendFontSize: 10, legendColor: INK2,
+      x: x + 0.05, y: 1.84, w: 4.0, h: 3.06, layout: { x: 0.25, y: 0.10, w: 0.50, h: 0.64 }, chartColors: idx.map((i) => colors[i]), showLegend: true, legendPos: 'b', legendFontFace: F, legendFontSize: 10, legendColor: INK2,
       showPercent: true, showValue: false, showLabel: false, showTitle: false, dataLabelPosition: 'outEnd', dataLabelFontFace: H, dataLabelFontSize: 14, dataLabelFontBold: true, dataLabelColor: '000000', dataLabelFormatCode: '0%;-0%;', dataBorder: { pt: 0, color: 'FFFFFF' },
     })
   })
