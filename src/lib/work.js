@@ -11,6 +11,7 @@ import { supabase, SUPABASE_ENABLED } from './supabase'
 import { useAuth } from './auth'
 import { useStore } from './store'
 import { uid, nowIso } from './util'
+import { WORKFLOW_BY_ID } from '../data/workflows'
 
 const LS_KEY = 'paradiem_planning_work_v1'
 export const TEXT_DEBOUNCE_MS = 500
@@ -23,7 +24,10 @@ export const STATUSES = [
   { id: 'stuck', label: 'Stuck', color: '#DF4B4B', fg: '#FFFFFF' },
   { id: 'waiting', label: 'Waiting on client', color: '#4A86E8', fg: '#FFFFFF' },
   { id: 'done', label: 'Done', color: '#2DB37A', fg: '#FFFFFF' },
+  { id: 'na', label: 'Not applicable', color: '#5559DF', fg: '#FFFFFF' },
 ]
+// A task in either of these is finished as far as counts and overdue flags go.
+export const isClosed = (status) => status === 'done' || status === 'na'
 export const STATUS_BY_ID = Object.fromEntries(STATUSES.map((s) => [s.id, s]))
 export const PRIORITIES = [
   { id: 'high', label: 'High', color: '#DF4B4B', fg: '#FFFFFF' },
@@ -77,7 +81,7 @@ const pad = (n) => String(n).padStart(2, '0')
 export const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 export const todayIso = () => ymd(new Date())
 export const addDays = (iso, n) => { const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number); return ymd(new Date(y, m - 1, d + n)) }
-export const isOverdue = (t, today = todayIso()) => Boolean(t.due) && t.status !== 'done' && t.due < today
+export const isOverdue = (t, today = todayIso()) => Boolean(t.due) && !isClosed(t.status) && t.due < today
 export const shortDate = (iso) => {
   if (!iso) return ''
   const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`)
@@ -115,6 +119,27 @@ export function buildTemplate(startIso) {
     const key = `tpl-${i}`
     projects.push({ _key: key, name: p.name, color: p.color || PROJECT_COLORS[i % PROJECT_COLORS.length], due: addDays(startIso, Math.max(...p.tasks.map((t) => t.day))) })
     p.tasks.forEach((t) => tasks.push({ projectKey: key, title: t.title, due: addDays(startIso, t.day), priority: t.priority || 'medium', owner: '' }))
+  })
+  return { projects, tasks }
+}
+
+// Projects and tasks for one of the monday-based workflows in src/data/workflows.js. A step with no subtasks becomes
+// a single task named after the step so it still shows up as a to-do.
+export function buildWorkflow(workflowId, startIso) {
+  const w = WORKFLOW_BY_ID[workflowId]
+  const projects = []
+  const tasks = []
+  if (!w) return { projects, tasks }
+  w.steps.forEach((step, i) => {
+    const key = `wf-${w.id}-${i}`
+    const specs = step.tasks.length ? step.tasks.map((t) => (Array.isArray(t) ? { title: t[0], ...t[1] } : { title: t })) : [{ title: step.name }]
+    const days = specs.map((t) => t.day).filter((d) => d != null)
+    const stepDay = step.day != null ? step.day : days.length ? Math.max(...days) : null
+    projects.push({ _key: key, name: step.name, color: step.color || PROJECT_COLORS[i % PROJECT_COLORS.length], due: stepDay != null ? addDays(startIso, stepDay) : '', workflow: w.id })
+    specs.forEach((t) => {
+      const notes = [t.notes, t.ref ? `Template file in monday: ${t.ref}` : ''].filter(Boolean).join('\n')
+      tasks.push({ projectKey: key, title: t.title, due: t.day != null ? addDays(startIso, t.day) : '', priority: t.priority || 'medium', owner: '', notes })
+    })
   })
   return { projects, tasks }
 }

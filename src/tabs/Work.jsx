@@ -8,8 +8,9 @@ import { Card, Eyebrow, Title, Btn, Input, TextArea, Select, Field, Empty, Note,
 import { download, uid, nowIso } from '../lib/util'
 import {
   useWork, STATUSES, STATUS_BY_ID, PRIORITIES, PRIORITY_BY_ID, PROJECT_COLORS, PROJECT_STATUSES, TOOLS_PROJECT_NAME,
-  buildTemplate, planToolImport, todayIso, addDays, isOverdue, shortDate, relTime, nameFromEmail, initialsOf, ENGAGEMENT_TEMPLATE,
+  buildTemplate, buildWorkflow, planToolImport, todayIso, addDays, isOverdue, isClosed, shortDate, relTime, nameFromEmail, initialsOf, ENGAGEMENT_TEMPLATE,
 } from '../lib/work'
+import { WORKFLOWS, WORKFLOW_BY_ID, workflowTaskCount } from '../data/workflows'
 
 const COLS = '34px minmax(220px,1fr) 130px 150px 112px 88px 56px 140px'
 const VIEW_KEY = 'planning_work_view'
@@ -47,8 +48,8 @@ function WorkInner({ C, isDesktop, f }) {
   const inSeven = addDays(today, 7)
   const thisMonth = today.slice(0, 7)
   const stats = useMemo(() => {
-    const open = tasks.filter((t) => t.status !== 'done')
-    const done = tasks.filter((t) => t.status === 'done')
+    const open = tasks.filter((t) => !isClosed(t.status))
+    const done = tasks.filter((t) => isClosed(t.status))
     return {
       open: open.length,
       overdue: open.filter((t) => isOverdue(t, today)).length,
@@ -91,11 +92,12 @@ function WorkInner({ C, isDesktop, f }) {
   const addToGroup = (pid, title) => { const s = title.trim(); if (s) W.addTask({ projectId: pid, title: s }) }
   const toggleDone = (t) => W.updateTask(t.id, { status: t.status === 'done' ? 'todo' : 'done' })
   const duplicate = (t) => W.addTask({ projectId: t.projectId, title: `${t.title || 'Untitled task'} (copy)`, status: 'todo', owner: t.owner, due: t.due, priority: t.priority, notes: t.notes, subtasks: t.subtasks.map((s) => ({ ...s, id: uid(), done: false })) })
-  const createTemplate = (start) => {
-    const { projects: ps, tasks: ts } = buildTemplate(start)
+  const createTemplate = (id, start) => {
+    const w = WORKFLOW_BY_ID[id]
+    const { projects: ps, tasks: ts } = w ? buildWorkflow(id, start) : buildTemplate(start)
     W.addMany(ps, ts)
     setModal(null)
-    say(`Created ${ps.length} projects and ${ts.length} tasks from the standard engagement, starting ${shortDate(start)}.`)
+    say(`Created ${ps.length} projects and ${ts.length} tasks from ${w ? `the ${w.name} workflow` : 'the standard engagement'}, starting ${shortDate(start)}.`)
   }
   const importTools = () => {
     if (!toImport.length) { say('No new accepted tools to import. Accept tools in Priorities first, or all of them are already here.', 'info'); return }
@@ -294,7 +296,7 @@ function FirstRun({ C, onTemplate, onProject, onImport, importCount }) {
           <Btn C={C} onClick={onImport}>Import accepted tools{importCount ? ` (${importCount})` : ''}</Btn>
         </div>}>
         Projects hold tasks. Each task has an owner, status, due date, notes, subtasks, comments and files, and the team sees changes live.<br />
-        Start from the standard Paradiem engagement, import the tools accepted in Priorities, or build your own list from scratch.
+        Start from one of the Paradiem workflows (Gap Analysis, Gap Analysis & Blueprint, Survey, Design), import the tools accepted in Priorities, or build your own list.
       </Empty>
     </Card>
   )
@@ -342,7 +344,7 @@ function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects
 }
 
 function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, me, editing, setEditing }) {
-  const done = all.filter((t) => t.status === 'done').length
+  const done = all.filter((t) => isClosed(t.status)).length
   const pct = all.length ? Math.round((done / all.length) * 100) : 0
   const ref = useRef(null)
   useEffect(() => { if (editing && ref.current) { ref.current.focus(); ref.current.select() } }, [editing])
@@ -527,25 +529,37 @@ function Modal({ C, title, onClose, children, width = 560 }) {
 }
 
 function TemplateModal({ C, isDark, projects, onClose, onCreate }) {
+  const [pick, setPick] = useState(WORKFLOWS[0].id)
   const [start, setStart] = useState(todayIso())
-  const dup = ENGAGEMENT_TEMPLATE.filter((p) => projects.some((x) => x.name === p.name))
-  const count = ENGAGEMENT_TEMPLATE.reduce((n, p) => n + p.tasks.length, 0)
+  const w = WORKFLOW_BY_ID[pick]
+  const steps = w ? w.steps : ENGAGEMENT_TEMPLATE.map((p) => ({ name: p.name, color: p.color, tasks: p.tasks.map((t) => t.title) }))
+  const count = w ? workflowTaskCount(w) : ENGAGEMENT_TEMPLATE.reduce((n, p) => n + p.tasks.length, 0)
+  const hasDays = Boolean(w) && w.steps.some((x) => x.day != null || x.tasks.some((t) => Array.isArray(t) && t[1]?.day != null))
+  const dup = w ? projects.some((x) => x.workflow === w.id) : ENGAGEMENT_TEMPLATE.some((p) => projects.some((x) => x.name === p.name))
+  const options = [...WORKFLOWS.map((x) => ({ id: x.id, label: x.short })), { id: 'standard', label: 'Generic engagement' }]
   return (
-    <Modal C={C} title="Start from the standard engagement" onClose={onClose}>
-      <div style={{ fontSize: 12.5, color: C.t3, lineHeight: 1.6, marginBottom: 12 }}>Creates {ENGAGEMENT_TEMPLATE.length} projects and {count} tasks. Due dates are counted from the start date. Owners start as Unassigned.</div>
-      <Field C={C} label="Engagement start date"><Input C={C} type="date" value={start} onChange={setStart} aria-label="Start date" style={{ colorScheme: isDark ? 'dark' : 'light', maxWidth: 220 }} /></Field>
-      <div style={{ margin: '14px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {ENGAGEMENT_TEMPLATE.map((p) => (
+    <Modal C={C} title="Start from a workflow" onClose={onClose} width={640}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        {options.map((o) => <Toggle2 key={o.id} C={C} on={pick === o.id} onClick={() => setPick(o.id)}>{o.label}</Toggle2>)}
+      </div>
+      <div style={{ fontSize: 12.5, color: C.t3, lineHeight: 1.6, marginBottom: 12 }}>
+        {w ? <>{w.blurb} Copied from <b style={{ color: C.t2 }}>{w.source}</b>: each monday step becomes a project and each subitem a task. </> : 'A generic four-phase engagement with due dates counted from the start date. '}
+        Creates {steps.length} projects and {count} tasks. {w ? (hasDays ? 'Due dates are set only where the monday template states timing (contract one week before kick-off, check-ins in weeks 2 and 4); set the rest as meetings are booked. ' : 'The monday template has no due dates, so tasks start undated; set them as meetings are booked. ') : ''}Owners start as Unassigned.
+      </div>
+      <Field C={C} label={w ? w.startLabel : 'Engagement start date'}><Input C={C} type="date" value={start} onChange={setStart} aria-label="Start date" style={{ colorScheme: isDark ? 'dark' : 'light', maxWidth: 220 }} /></Field>
+      <div style={{ margin: '14px 0', display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '34dvh', overflowY: 'auto' }}>
+        {steps.map((p) => (
           <div key={p.name} style={{ borderLeft: `3px solid ${p.color}`, paddingLeft: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.t1 }}>{p.name} <span style={{ fontWeight: 500, color: C.t4 }}>· {p.tasks.length} tasks</span></div>
-            <div style={{ fontSize: 11.5, color: C.t3, lineHeight: 1.5 }}>{p.tasks.map((t) => t.title).join(' · ')}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.t1 }}>{p.name} <span style={{ fontWeight: 500, color: C.t4 }}>· {Math.max(1, p.tasks.length)} task{p.tasks.length > 1 ? 's' : ''}</span></div>
+            <div style={{ fontSize: 11.5, color: C.t3, lineHeight: 1.5 }}>{p.tasks.map((t) => (Array.isArray(t) ? t[0] : t)).join(' · ')}</div>
           </div>
         ))}
       </div>
-      {dup.length > 0 && <Note C={C} tone="warn" style={{ marginBottom: 12 }}>This family already has {dup.map((p) => `"${p.name}"`).join(', ')}. Creating the template again adds duplicates.</Note>}
+      {dup && <Note C={C} tone="warn" style={{ marginBottom: 12 }}>This family already has projects from this workflow. Creating it again adds duplicates.</Note>}
+      {w?.next && <Note C={C} tone="info" style={{ marginBottom: 12 }}>Next stage in the monday flow: {WORKFLOW_BY_ID[w.next].name}. Start it from here when the client moves forward.</Note>}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Btn C={C} ghost onClick={onClose}>Cancel</Btn>
-        <Btn C={C} primary disabled={!start} onClick={() => onCreate(start)}>Create projects and tasks</Btn>
+        <Btn C={C} primary disabled={!start} onClick={() => onCreate(pick, start)}>Create projects and tasks</Btn>
       </div>
     </Modal>
   )
