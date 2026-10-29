@@ -14,7 +14,7 @@ import * as U from './slidesUnder5'
 import { blendedAumRate } from './fees'
 const { asDataUrl, imageDims, INVEST_FOOT } = K
 const {
-  cover, disclosures, framework, twoKinds, processSlide, numbersReveal, incomeClarity, philosophy, principles, ownersLens, perfTable,
+  cover, disclosures, framework, twoKinds, processSlide, incomeClarity, philosophy, principles, ownersLens, perfTable,
   proposedOwnership, cashNeeds, buyOption, proposedPerf, lifeboat, nextStep, gapSummary, blueprint, caseStudy, teamSlides, pathForward,
   divider, goalsList, planAnalysisList, goalAnalysis, estateTaxSlide, balanceSheetSlide, flowSlide, toolPages, timelineSlide, nextStepsSlide,
   coupleName, DEFAULT_NEXT_STEPS,

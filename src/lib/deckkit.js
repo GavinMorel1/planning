@@ -177,29 +177,6 @@ export function numbersHeader(s, familyName) {
   eyebrow(s, 'What the numbers reveal', { x: 0.55, y: 0.16, w: 6, h: 0.22 })
   georgia(s, `${shortName({ name: familyName }) ? shortName({ name: familyName }) + ' ' : ''}Family Capital Assessment`, { x: 0.55, y: 0.35, w: 9, h: 0.5, fontSize: 26, valign: 'middle' })
 }
-export function numbersReveal(pptx, settings, familyName, a = {}, nw = 0) {
-  const s = base(pptx, { bar: false, foot: false })
-  numbersHeader(s, familyName)
-  georgia(s, "Average results from serving 100's of families over 40+ years.", { x: 0.65, y: 0.78, w: 8, h: 0.3, fontSize: 15, italic: true })
-  const fa = settings.firmAverages
-  const cols = [fa.generosity, fa.estateTax, fa.lifetime, fa.failure, fa.performance]
-  cols.forEach((c, i) => {
-    const x = [0.55, 2.28, 4.04, 5.86, 7.65][i], y = 1.04, w = 1.58, h = 3.55
-    const bad = i === 3
-    rect(s, pptx, x, y, w, h, B.tile)
-    rect(s, pptx, x, y, 0.05, h, bad ? B.red : B.navy)
-    georgia(s, c.pct, { x: x + 0.15, y: y + 0.45, w: w - 0.2, h: 0.55, fontSize: 28, color: bad ? B.red : B.navy, valign: 'middle' })
-    georgia(s, c.label, { x: x + 0.15, y: y + 1.1, w: w - 0.18, h: 0.65, fontSize: 10, lineSpacingMultiple: 1.25 })
-    if (c.footnote) calibri(s, c.footnote, { x: x + 0.15, y: y + 1.78, w: w - 0.18, h: 0.25, fontSize: 8 })
-    const key = ['nGenerosity', 'nEstateTax', 'nLifetime', 'nFailure', 'nPerformance'][i], pc = parseFloat(String(c.pct).replace('%', '')) || 0
-    const given = a[key] !== '' && a[key] != null && !isNaN(Number(String(a[key]).replace(/[$,]/g, ''))) ? num(a[key]) : null
-    const calc = nw && (key === 'nLifetime' || key === 'nFailure') ? Math.round(pc / 100 * nw) : null
-    const amt = given != null ? fmtUsd(given) : calc != null ? fmtUsd(calc) : '$—'
-    calibri(s, amt, { x: x + 0.1, y: 4.22, w: w - 0.42, h: 0.3, fontSize: 15, bold: true, color: B.navy2, valign: 'middle' })
-    arrow(s, pptx, x + w - 0.3, 4.28, c.dir !== 'down')
-  })
-  calibri(s, `${COPY.hypothetical} ${COPY.firmAveragesFootnote}`, { x: 0.1, y: 4.72, w: 9.8, h: 0.85, fontSize: 6.5, color: B.caption, charSpacing: 2, lineSpacingMultiple: 1.15 })
-}
 export const NUM_LINES = ['The information presented is hypothetical and for illustrative purposes only. It is based on assumptions, estimates, and inputs provided or derived', 'from current information, all of which are subject to change. These projections do not reflect actual investment results and are not guarantees of', 'future performance or outcomes. Actual results will vary and may differ materially based on market conditions, investment decisions, tax law', 'changes, and other factors. This analysis is intended to support discussion and planning and should not', 'be relied upon as a prediction of future results or as a recommendation to take any specific action.']
 export function numFootnote(s, extra) {
   const lines = extra ? [...NUM_LINES.slice(0, 4), NUM_LINES[4].replace(/action\.$/, 'action. ') + extra[0], extra[1]] : NUM_LINES

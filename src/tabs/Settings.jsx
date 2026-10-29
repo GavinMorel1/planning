@@ -7,6 +7,7 @@ import { Card, Eyebrow, Title, SubTabs, Btn, Input, Field, Grid, Row, Note, Text
 import { DEFAULT_SETTINGS, DEFAULT_ROSTER } from '../data/defaults'
 import { download } from '../lib/util'
 import { lockApp } from '../lib/passcode'
+import { DEFAULT_RATES } from '../lib/numbersCalc'
 import PerformanceEditor from '../components/PerformanceEditor'
 
 // Change the signed-in account's password (there is no email service, so no reset links).
@@ -125,17 +126,17 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
       )}
 
       {sub === 'firm' && (
-        <Card C={C}>
-          <Eyebrow C={C}>"What the Numbers Reveal" — firm-wide averages</Eyebrow>
-          <div style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>Fixed slide in every Assessment deck. Average results from serving hundreds of families over 40+ years.</div>
-          {Object.entries(settings.firmAverages || {}).map(([k, v]) => (
-            <Grid key={k} cols={isDesktop ? 4 : 2} gap={8} style={{ padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
-              <Field C={C} label="Headline"><Input C={C} value={v.pct} onChange={(x) => updateSettings((s) => ({ ...s, firmAverages: { ...s.firmAverages, [k]: { ...v, pct: x } } }))} /></Field>
-              <Field C={C} label="Label"><Input C={C} value={v.label} onChange={(x) => updateSettings((s) => ({ ...s, firmAverages: { ...s.firmAverages, [k]: { ...v, label: x } } }))} /></Field>
-              <Field C={C} label="Dollar figure"><Input C={C} value={v.amount} onChange={(x) => updateSettings((s) => ({ ...s, firmAverages: { ...s.firmAverages, [k]: { ...v, amount: Number(x) || 0 } } }))} /></Field>
-              <Field C={C} label="Footnote"><Input C={C} value={v.footnote || ''} onChange={(x) => updateSettings((s) => ({ ...s, firmAverages: { ...s.firmAverages, [k]: { ...v, footnote: x } } }))} /></Field>
-            </Grid>
-          ))}
+        <Card C={C} style={{ marginBottom: 14 }}>
+          <Eyebrow C={C}>"What the Numbers Reveal" calculator · constants</Eyebrow>
+          <div style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>The eight sections on the Assessment tab use these. Enter percentages as plain numbers (12.67 means 12.67%). Changing one updates every family's calculation and the slide.</div>
+          <Grid cols={isDesktop ? 4 : 2} gap={8}>
+            {[['generosityMult', '1 · Generosity multiplier (4.22 = 422%)'], ['incomeTaxPct', '2 · Income taxes % decrease'], ['capGainsPct', '3 · Capital gains % decrease'], ['capGainsTaxRatePct', '3 · Capital gains tax rate %'],
+              ['estateTaxPct', '4 · Estate taxes % decrease'], ['estateTaxRatePct', '4 · Estate tax rate %'], ['exemption', '4 · Estate exemption $ (married)'], ['lifetimePct', '5 · Inheritance moved %'],
+              ['failure1Pct', '6 · Failure after 1st generation %'], ['failure3Pct', '7 · Failure in 3rd generation %'], ['growthRatePct', '8 · Extra performance % per year'], ['defaultLifeExpectancy', 'Default life expectancy']].map(([k, label]) => (
+              <Field key={k} C={C} label={label}><Input C={C} value={(settings.numbersCalc || DEFAULT_RATES)[k] ?? ''} onChange={(x) => updateSettings((st) => ({ ...st, numbersCalc: { ...DEFAULT_RATES, ...(st.numbersCalc || {}), [k]: x === '' ? '' : Number(x) || 0 } }))} /></Field>
+            ))}
+          </Grid>
+          <div style={{ fontSize: 11.5, color: C.t4, marginTop: 8 }}>A single person's estate exemption is half the married figure. Defaults: under-$5M deck prints sections 1, 5, 6, 8; $5M+ prints 1, 4, 5, 6, 8 (each family can change its ticks).</div>
         </Card>
       )}
 

@@ -1,4 +1,5 @@
 import { DEFAULT_FEE_SCHEDULE } from '../lib/fees'
+import { DEFAULT_RATES } from '../lib/numbersCalc'
 
 export const DEFAULT_ROSTER = [
   { name: 'Eric L. Dunavant', title: 'Founder & President', photo: 'headshots/eric-l-dunavant.png' },
@@ -78,6 +79,7 @@ export const DEFAULT_SETTINGS = {
     failure: { pct: '70%', label: 'Family Capital Failure After First Generation*', amount: 12600700, dir: 'down', footnote: '*NY Post, April 2017' },
     performance: { pct: '10.93%', label: 'Potential Portfolio Performance**', amount: 656036, dir: 'up', footnote: '**2% net over index' },
   },
+  numbersCalc: DEFAULT_RATES, // constants behind the "What the Numbers Reveal" calculator (Settings > Firm averages)
   theme: 'auto',
 }
 

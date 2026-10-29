@@ -8,6 +8,7 @@ import { fmtUsd, num, download, nowIso, uid } from '../lib/util'
 import { netWorthOf } from './Families'
 import { familyFlags } from '../lib/flags'
 import PerformanceEditor from '../components/PerformanceEditor'
+import NumbersCalculator from '../components/NumbersCalculator'
 
 const SLIDES_U5 = [
   ['matthew25', 'Matthew 25 parable (2 slides)'], ['income', 'Income · Clarity · Protection'], ['inspiration', 'Inspiration partners'],
@@ -64,7 +65,7 @@ export default function Assessment({ C, isDesktop, setTab }) {
   }
 
   const money = (label, key, ph, hint) => <Field C={C} label={label} hint={hint}><Input C={C} value={a[key]} onChange={(v) => set(key, v)} placeholder={ph} /></Field>
-  const tabs = [{ id: 'cover', label: 'Cover & numbers' }, { id: 'owner', label: 'Think like an owner' }, { id: 'portfolio', label: 'Portfolio & cash' }, { id: 'performance', label: 'Performance & risk' }, { id: 'quarterly', label: 'Quarterly returns' }, { id: 'close', label: 'Gap summary, fees & close' }]
+  const tabs = [{ id: 'cover', label: 'Cover & income' }, { id: 'numbers', label: 'What the numbers reveal' }, { id: 'owner', label: 'Think like an owner' }, { id: 'portfolio', label: 'Portfolio & cash' }, { id: 'performance', label: 'Performance & risk' }, { id: 'quarterly', label: 'Quarterly returns' }, { id: 'close', label: 'Gap summary, fees & close' }]
 
   return (
     <div>
@@ -96,17 +97,6 @@ export default function Assessment({ C, isDesktop, setTab }) {
               <Field C={C} label="Presentation date" hint={under ? '' : 'Prints as "Presented | March 3rd, 2026"'}><Input C={C} type="date" value={a.date} onChange={(v) => set('date', v)} /></Field>
               <Field C={C} label="Cover name line" hint='Prints under the title. Blank = spouse names. e.g. "Mr. and Mrs. Abrams"'><Input C={C} value={a.coverName} onChange={(v) => set('coverName', v)} placeholder="Mr. and Mrs. ______" /></Field>
               <Field C={C} label="Family short name" hint='Used in "NAME Family Capital Assessment" titles'><Input C={C} value={a.familyShort} onChange={(v) => set('familyShort', v)} placeholder={(f.name || '').replace(/^The /, '').replace(/ Family$/, '')} /></Field>
-            </Grid>
-          </Card>
-          <Card C={C}>
-            <Eyebrow C={C}>"What the Numbers Reveal" · family dollar amounts</Eyebrow>
-            <div style={{ fontSize: 11.5, color: C.t4, marginBottom: 8 }}>The percentages are firm averages (Settings). These are what each percentage means in dollars for this family.</div>
-            <Grid cols={2} gap={10}>
-              {money('Increase in lifetime generosity $', 'nGenerosity', '679420')}
-              {!under && money('Reduction of estate taxes $', 'nEstateTax', '5453400')}
-              {money('Inheritance moved into lifetime $', 'nLifetime', 'auto from net worth')}
-              {money('Family capital failure $', 'nFailure', 'auto from net worth', 'Blank = firm % × net worth')}
-              {money('Potential portfolio performance $', 'nPerformance', '444068')}
             </Grid>
           </Card>
           {under && (
@@ -243,6 +233,8 @@ export default function Assessment({ C, isDesktop, setTab }) {
           </Card>}
         </Grid>
       )}
+
+      {sub === 'numbers' && <NumbersCalculator C={C} f={f} patch={patch} settings={settings} isDesktop={isDesktop} variant={variant} />}
 
       {sub === 'quarterly' && <PerformanceEditor C={C} settings={settings} updateSettings={updateSettings} />}
 

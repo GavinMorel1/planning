@@ -4,6 +4,8 @@ import { buildAssessment, buildGap } from '../lib/pptx'
 import { Card, Eyebrow, Title, Btn, Grid, Row, Note, Pill, Check, Empty, Field, Input, TextArea } from '../components/ui'
 import { download, nowIso, uid, fmtDate } from '../lib/util'
 import { DOC_CATEGORIES } from '../data/docCategories'
+import NumbersCalculator from '../components/NumbersCalculator'
+import { assessmentVariant } from '../lib/pptx'
 
 export default function Presentations({ C, isDesktop, setTab }) {
   const { settings } = useStore()
@@ -70,6 +72,10 @@ export default function Presentations({ C, isDesktop, setTab }) {
           <ol style={{ paddingLeft: 20, fontSize: 12.5, color: C.t2, lineHeight: 1.8 }}>{gapOutline.map((x) => <li key={x}>{x}</li>)}</ol>
         </Card>
       </Grid>
+      <div style={{ marginTop: 14 }}>
+        <Eyebrow C={C}>Assessment slide · What the Numbers Reveal</Eyebrow>
+        <NumbersCalculator C={C} f={f} patch={patch} settings={settings} isDesktop={isDesktop} variant={assessmentVariant(f)} />
+      </div>
       <Card C={C} style={{ marginTop: 14 }}>
         <Eyebrow C={C}>History</Eyebrow>
         {!(f.presentations || []).length ? <div style={{ fontSize: 12.5, color: C.t4 }}>No decks generated yet.</div> : [...f.presentations].reverse().map((p) => (

@@ -5,6 +5,7 @@ import { B, H, F, base, footer, INVEST_FOOT, kit, rect, hline, T, eyebrow, georg
 import { fmtUsd, num } from './util'
 import { wrap } from './flow'
 import { aumTiers } from './fees'
+import { calcNumbers, includedSections, DEFAULT_RATES } from './numbersCalc'
 
 const N2 = '1B1836', GREY = '8C8C8C', BORD = 'CCC9C1', INK2 = '1C1D32', GOLD2 = 'C0A24C', OLIVE = 'B2A26F'
 const st = (c, w = 0.75) => ({ color: c, width: w })
@@ -41,30 +42,38 @@ export function matthew(pptx, part, icon) {
   T(s, 'https://www.biblegateway.com/passage/?search=Matthew+25%3A14-30&version=NIV', 3.79, 5.32, 3.2, { fontSize: 5.6, color: lc })
 }
 
-// ── What the Numbers Reveal (4 columns for under-$5M, 5 for $5M+; family-specific dollar amounts) ─────────────
-const LABEL_LINES = { generosity: ['Increase in Lifetime', 'Generosity'], estateTax: ['Reduction of', 'Estate Taxes'], lifetime: ['Inheritance Moved', 'into Lifetime'], failure: ['Family Capital Failure', 'After First Generation*'], performance: ['Potential Portfolio', 'Performance**'] }
-export function numbers4(pptx, settings, a, f, nw, five = false) {
+// ── What the Numbers Reveal ──────────────────────────────────────────────────────────────────────────────
+// Prints the sections the planner ticked in the calculator (src/lib/numbersCalc.ts), 1 to 8 boxes laid out evenly.
+// Defaults: under-$5M 1, 5, 6, 8; $5M+ 1, 4, 5, 6, 8.
+const NUM_LABELS = {
+  1: ['Increased Lifetime', 'Generosity'], 2: ['Reduction in', 'Income Taxes'], 3: ['Reduction of', 'Capital Gains Taxes'], 4: ['Reduction of', 'Estate Taxes'],
+  5: ['Inheritance Moved', 'into Lifetime'], 6: ['Wealth Failure after', 'First Generation*'], 7: ['Wealth Failure in', '3rd Generation*'], 8: ['Investment', 'Performance**'],
+}
+export function numbersLayout(count) {
+  const left = 0.55, right = 9.2
+  const w = count <= 5 ? 1.58 : Math.round(((right - left - 0.1 * (count - 1)) / count) * 1000) / 1000
+  const pitch = count > 1 ? (right - left - w) / (count - 1) : 0
+  return Array.from({ length: count }, (_, i) => ({ x: count > 1 ? left + i * pitch : (left + right) / 2 - w / 2, w }))
+}
+export function numbers4(pptx, settings, a, f, nw, over5 = false) {
   const s = base(pptx, { bar: false, foot: false })
   eyebrow(s, 'What the numbers reveal', { x: 0.55, y: 0.22, w: 6, h: 0.2, fontSize: 10 })
   T(s, `${nameOf(a, f)} Family Capital Assessment`, 0.51, 0.33, 9, { fontFace: H, fontSize: 26.1, color: B.navy })
   T(s, 'Average results from serving 100’s of families over 40+ years.', 0.67, 0.75, 8.5, { fontFace: H, fontSize: 16, italic: true, color: B.navy })
-  const fa = settings.firmAverages || {}
-  const pctNum = (p) => parseFloat(String(p).replace('%', '')) || 0
-  const given = (key) => { const v = a[key]; return v !== '' && v != null && !isNaN(Number(String(v).replace(/[$,]/g, ''))) ? num(v) : null }
-  const colsDef = [['generosity', 'nGenerosity', true], ...(five ? [['estateTax', 'nEstateTax', false]] : []), ['lifetime', 'nLifetime', true], ['failure', 'nFailure', false], ['performance', 'nPerformance', true]]
-  const xs = five ? [0.55, 2.28, 4.04, 5.86, 7.65] : [0.56, 2.92, 5.28, 7.64]
-  colsDef.forEach(([k, amtKey, up], i) => {
-    const c = fa[k] || {}, x = xs[i], red = k === 'failure'
-    const calc = nw && (k === 'lifetime' || k === 'failure') ? Math.round(pctNum(c.pct) / 100 * nw) : null
-    const amt = given(amtKey) ?? calc
-    rect(s, pptx, x, 1.04, 1.58, 3.55, B.tile, st(B.tileBorder, 0.5))
+  const N = a.numbers || {}
+  const rates = { ...DEFAULT_RATES, ...(settings.numbersCalc || {}) }
+  const res = calcNumbers(N, rates)
+  const ids = includedSections(N.include, over5 ? 'over5' : 'under5')
+  const lay = numbersLayout(ids.length)
+  const small = ids.length > 5
+  ids.forEach((id, i) => {
+    const sec = res.sections[id], { x, w } = lay[i], red = Boolean(sec.red)
+    rect(s, pptx, x, 1.04, w, 3.55, B.tile, st(B.tileBorder, 0.5))
     rect(s, pptx, x - 0.05, 1.04, 0.05, 3.55, red ? B.red : B.navy, kit.outlines ? st('000000', 1) : undefined)
-    T(s, c.pct || '', x + 0.08, 1.46, 1.5, { fontFace: H, fontSize: 28, color: red ? B.red : B.navy })
-    LABEL_LINES[k].forEach((ln, q) => T(s, ln, x + 0.08, 2.15 + q * 0.21, 1.5, { fontFace: H, fontSize: 10, color: B.navy }))
-    if (c.footnote) T(s, c.footnote, x + 0.08, 2.72, 1.5, { fontSize: 10, color: B.text })
-    const ax = x + 1.33
-    arrow(s, pptx, ax, 4.25, up, 0.19, '3A4070')
-    T(s, amt == null ? '$—' : fmtUsd(amt), x + 0.17, 4.25, 1.15, { fontSize: 16, bold: true, color: red ? B.red : B.navy2, align: five ? 'left' : 'right' })
+    T(s, sec.pctLabel, x + 0.06, small ? 1.5 : 1.46, w - 0.08, { fontFace: H, fontSize: small ? 18 : 28, color: red ? B.red : B.navy })
+    NUM_LABELS[id].forEach((ln, q) => T(s, ln, x + 0.06, small ? 2.05 + q * 0.17 : 2.15 + q * 0.21, w - 0.08, { fontFace: H, fontSize: small ? 7.5 : 10, color: B.navy }))
+    arrow(s, pptx, small ? x + 0.07 : x + w - 0.25, small ? 3.92 : 4.25, sec.dir === 'up', small ? 0.15 : 0.19, '3A4070')
+    T(s, fmtUsd(Math.round(sec.value)), x + 0.06, 4.25, small ? w - 0.06 : w - 0.4, { fontSize: small ? 10 : 16, bold: true, color: red ? B.red : B.navy2, align: 'left' })
   })
   numFootnote(s, ['(*“Most rich families will lose it all”, Catey', 'Hill, New York Post, April 24, 2017) [**Past Performance is no guarantee of future results.]'])
 }
