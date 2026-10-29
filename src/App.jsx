@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { themeFor } from './lib/theme'
 import { useStore } from './lib/store'
 import { useAuth } from './lib/auth'
+import { useRole } from './lib/roles'
+import { ROLE_LABELS } from './lib/permissions'
 import Desk from './tabs/Desk'
 import Families from './tabs/Families'
 import Documents from './tabs/Documents'
@@ -49,6 +51,9 @@ export default function App() {
   const { families, family, setActive, settings, updateSettings, syncErr, ready, mode } = store
   const { email, signOut, localMode } = useAuth()
   const isDesktop = useMedia('(min-width: 900px)')
+  const { role } = useRole()
+  const [roNotice, setRoNotice] = useState(false)
+  useEffect(() => { let t; const on = () => { setRoNotice(true); clearTimeout(t); t = setTimeout(() => setRoNotice(false), 4500) }; window.addEventListener('planning-readonly', on); return () => { window.removeEventListener('planning-readonly', on); clearTimeout(t) } }, [])
   const [tab, setTab] = useState(() => localStorage.getItem('planning_tab') || 'desk')
   const [menu, setMenu] = useState(false)
   const [themeName, setThemeName] = useState(() => localStorage.getItem('planning_theme') || 'dark')
@@ -138,6 +143,8 @@ export default function App() {
           </div>
         </div>
 
+        {role === 'rm' && <div style={{ padding: '8px 40px', fontSize: 12.5, fontWeight: 700, color: C.t1, background: C.accentSoft, borderBottom: `1px solid ${C.borderActive}` }}>Read-only access ({ROLE_LABELS.rm}): you can view everything and export decks and reports. Changes are not saved.</div>}
+        {roNotice && <div role="status" style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 10020, padding: '10px 18px', borderRadius: 12, background: C.dn, color: '#fff', fontWeight: 700, fontSize: 13, boxShadow: '0 8px 24px rgba(0,0,0,.4)' }}>Read-only access: that change was not saved.</div>}
         {syncErr && <div style={{ margin: isDesktop ? '12px 40px 0' : '12px 18px 0', padding: '10px 14px', borderRadius: 10, background: C.dnSoft, border: `1px solid ${C.dn}55`, fontSize: 12.5, color: C.t2 }}>{syncErr}</div>}
 
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: isDesktop ? '20px 40px 40px' : '16px 18px 40px' }}>

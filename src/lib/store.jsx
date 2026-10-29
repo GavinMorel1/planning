@@ -6,6 +6,7 @@ import { supabase, SUPABASE_ENABLED } from './supabase'
 import { idbPut, idbGet, idbDel } from './idb'
 import { DEFAULT_SETTINGS } from '../data/defaults'
 import { uid, nowIso, today } from './util'
+import { canEdit, denyEdit } from './permissions'
 
 const LS_KEY = 'paradiem_planning_v1'
 const StoreContext = createContext(null)
@@ -99,12 +100,14 @@ export function StoreProvider({ children }) {
   // ── API ──
   const api = useMemo(() => ({
     createFamily(name) {
+      if (!canEdit()) { denyEdit(); return null }
       const fam = newFamily(name)
       setState((s) => ({ ...s, families: [fam, ...s.families], activeFamilyId: fam.id }))
       persistFamily(fam)
       return fam
     },
     updateFamily(id, patch) {
+      if (!canEdit()) { denyEdit(); return }
       setState((s) => {
         const families = s.families.map((f) => {
           if (f.id !== id) return f
@@ -117,11 +120,13 @@ export function StoreProvider({ children }) {
       })
     },
     async deleteFamily(id) {
+      if (!canEdit()) { denyEdit(); return }
       setState((s) => ({ ...s, families: s.families.filter((f) => f.id !== id), activeFamilyId: s.activeFamilyId === id ? (s.families.find((f) => f.id !== id)?.id || null) : s.activeFamilyId }))
       if (SUPABASE_ENABLED) await supabase.from('families').delete().eq('id', id)
     },
     setActive(id) { setState((s) => ({ ...s, activeFamilyId: id })) },
     updateSettings(patch) {
+      if (!canEdit()) { denyEdit(); return }
       setState((s) => {
         const settings = typeof patch === 'function' ? patch(s.settings) : { ...s.settings, ...patch }
         persistSettings(settings)
@@ -130,6 +135,7 @@ export function StoreProvider({ children }) {
     },
     // files
     async putFile(familyId, file, meta = {}) {
+      if (!canEdit()) { denyEdit(); throw new Error('Read-only access: files cannot be uploaded.') }
       const id = uid()
       const key = `${familyId}/${id}-${file.name.replace(/[^A-Za-z0-9._-]/g, '_')}`
       if (SUPABASE_ENABLED) {
@@ -143,6 +149,7 @@ export function StoreProvider({ children }) {
       return idbGet(key)
     },
     async removeFile(key) {
+      if (!canEdit()) { denyEdit(); return }
       if (SUPABASE_ENABLED) { await supabase.storage.from('documents').remove([key]) } else { await idbDel(key) }
     },
     exportAll() {
@@ -150,6 +157,7 @@ export function StoreProvider({ children }) {
       return blob
     },
     importAll(json) {
+      if (!canEdit()) { denyEdit(); return }
       const data = typeof json === 'string' ? JSON.parse(json) : json
       if (!data || !Array.isArray(data.families)) throw new Error('Not a planning export')
       setState((s) => ({ families: data.families, settings: { ...DEFAULT_SETTINGS, ...(data.settings || s.settings) }, activeFamilyId: data.families[0]?.id || null }))

@@ -10,6 +10,7 @@ import { lockApp } from '../lib/passcode'
 import { DEFAULT_RATES } from '../lib/numbersCalc'
 import { DEFAULT_JOURNEY } from '../lib/journey'
 import PerformanceEditor from '../components/PerformanceEditor'
+import AccessManager from '../components/AccessManager'
 
 // Change the signed-in account's password (there is no email service, so no reset links).
 function ChangePassword({ C }) {
@@ -54,7 +55,7 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
   return (
     <div>
       <Title C={C} isDesktop={isDesktop} sub="Shared by the whole team. Changes flow into every deck the next time it is generated.">Settings</Title>
-      <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'performance', label: 'Quarterly performance' }, { id: 'tax', label: 'Tax constants' }, { id: 'fees', label: 'Fee schedule' }, { id: 'roster', label: 'Team roster' }, { id: 'journey', label: 'Journey' }, { id: 'firm', label: 'Firm averages' }, { id: 'system', label: 'System' }]} />
+      <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'performance', label: 'Quarterly performance' }, { id: 'tax', label: 'Tax constants' }, { id: 'fees', label: 'Fee schedule' }, { id: 'roster', label: 'Team roster' }, { id: 'journey', label: 'Journey' }, { id: 'access', label: 'Access' }, { id: 'firm', label: 'Firm averages' }, { id: 'system', label: 'System' }]} />
 
       {sub === 'performance' && <PerformanceEditor C={C} settings={settings} updateSettings={updateSettings} />}
 
@@ -140,6 +141,8 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
           <div style={{ fontSize: 11.5, color: C.t4, marginTop: 8 }}>A single person's estate exemption is half the married figure. Defaults: under-$5M deck prints sections 1, 5, 6, 8; $5M+ prints 1, 4, 5, 6, 8 (each family can change its ticks).</div>
         </Card>
       )}
+
+      {sub === 'access' && <AccessManager C={C} isDesktop={isDesktop} />}
 
       {sub === 'journey' && (
         <Card C={C}>

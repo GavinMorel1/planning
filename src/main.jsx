@@ -4,6 +4,7 @@ import App from './App.jsx'
 import { AuthProvider, AuthGate } from './lib/auth'
 import { StoreProvider } from './lib/store'
 import { PasscodeGate } from './lib/passcode'
+import { RoleProvider } from './lib/roles'
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -28,11 +29,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <PasscodeGate>
     <AuthProvider>
       <AuthGate>
+        <RoleProvider>
         <StoreProvider>
           <ErrorBoundary>
             <App />
           </ErrorBoundary>
         </StoreProvider>
+        </RoleProvider>
       </AuthGate>
     </AuthProvider>
     </PasscodeGate>

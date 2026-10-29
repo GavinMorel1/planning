@@ -6,6 +6,7 @@ import { supabase, SUPABASE_ENABLED } from './supabase'
 import { useAuth } from './auth'
 import { normalizeModel, modelFromFamily } from '../cashflow/types'
 import { nowIso } from './util'
+import { canEdit, denyEdit } from './permissions'
 
 const LS_KEY = 'paradiem_planning_cashflow_v1'
 const SAVE_DELAY = 700
@@ -84,6 +85,7 @@ export function useCashflowModel(family) {
 
   // Save a change. `updater` is a model or (model) => model. `meta` records where it came from (shown in History).
   const save = useCallback((updater, meta = {}, { immediate = false } = {}) => {
+    if (!canEdit()) { denyEdit(); return undefined }
     const r = ref.current
     const next = normalizeModel(typeof updater === 'function' ? updater(r.model) : updater, r.model.assumptions.baseYear)
     r.model = next

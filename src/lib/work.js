@@ -12,6 +12,7 @@ import { useAuth } from './auth'
 import { useStore } from './store'
 import { uid, nowIso } from './util'
 import { WORKFLOW_BY_ID } from '../data/workflows'
+import { canEdit, denyEdit } from './permissions'
 
 const LS_KEY = 'paradiem_planning_work_v1'
 export const TEXT_DEBOUNCE_MS = 500
@@ -346,6 +347,7 @@ export function useWork(familyId) {
   const insertRecords = useCallback((recs) => {
     const s = S.current
     if (!recs.length || !s.familyId || missingRef.current) return
+    if (!canEdit()) { denyEdit(); return }
     const next = { ...rowsRef.current }
     recs.forEach((r) => { next[r.id] = r })
     commit(next)
@@ -427,6 +429,7 @@ export function useWork(familyId) {
 
   const patchRow = useCallback((id, kind, patch) => {
     if (missingRef.current) return
+    if (!canEdit()) { denyEdit(); return }
     const cur = rowsRef.current[id]
     if (!cur) return
     const view = kind === 'task' ? normTask(cur) : normProject(cur)
@@ -448,6 +451,7 @@ export function useWork(familyId) {
   const removeIds = useCallback((ids) => {
     const s = S.current
     if (!ids.length) return
+    if (!canEdit()) { denyEdit(); return }
     const next = { ...rowsRef.current }
     ids.forEach((id) => { delete next[id]; s.deleted.add(id); clearTimeout(s.timers[id]); delete s.timers[id]; s.pending.delete(id) })
     commit(next)
