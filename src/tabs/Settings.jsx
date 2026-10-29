@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS, DEFAULT_ROSTER } from '../data/defaults'
 import { download } from '../lib/util'
 import { lockApp } from '../lib/passcode'
 import { DEFAULT_RATES } from '../lib/numbersCalc'
+import { DEFAULT_JOURNEY } from '../lib/journey'
 import PerformanceEditor from '../components/PerformanceEditor'
 
 // Change the signed-in account's password (there is no email service, so no reset links).
@@ -53,7 +54,7 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
   return (
     <div>
       <Title C={C} isDesktop={isDesktop} sub="Shared by the whole team. Changes flow into every deck the next time it is generated.">Settings</Title>
-      <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'performance', label: 'Quarterly performance' }, { id: 'tax', label: 'Tax constants' }, { id: 'fees', label: 'Fee schedule' }, { id: 'roster', label: 'Team roster' }, { id: 'firm', label: 'Firm averages' }, { id: 'system', label: 'System' }]} />
+      <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'performance', label: 'Quarterly performance' }, { id: 'tax', label: 'Tax constants' }, { id: 'fees', label: 'Fee schedule' }, { id: 'roster', label: 'Team roster' }, { id: 'journey', label: 'Journey' }, { id: 'firm', label: 'Firm averages' }, { id: 'system', label: 'System' }]} />
 
       {sub === 'performance' && <PerformanceEditor C={C} settings={settings} updateSettings={updateSettings} />}
 
@@ -137,6 +138,24 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
             ))}
           </Grid>
           <div style={{ fontSize: 11.5, color: C.t4, marginTop: 8 }}>A single person's estate exemption is half the married figure. Defaults: under-$5M deck prints sections 1, 5, 6, 8; $5M+ prints 1, 4, 5, 6, 8 (each family can change its ticks).</div>
+        </Card>
+      )}
+
+      {sub === 'journey' && (
+        <Card C={C}>
+          <Eyebrow C={C}>Desk journey · stages</Eyebrow>
+          <div style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>The stage names shown on the Desk trail. A stage finishes when every Work task in the listed steps is done. A stage with no tasks (Intake, interviews) is marked complete by hand on the Desk. Step names must match the project names in the family's Work tab (one per line); "Workflows" are workflow ids (gap, gapblueprint, survey, design).</div>
+          {(settings.journey || DEFAULT_JOURNEY).map((st, i, all) => {
+            const upd = (patch) => updateSettings((x) => ({ ...x, journey: (x.journey || DEFAULT_JOURNEY).map((y, k) => (k === i ? { ...y, ...patch } : y)) }))
+            return (
+              <Grid key={st.id} cols={isDesktop ? 3 : 1} gap={8} style={{ padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+                <Field C={C} label={`Stage ${String(i + 1).padStart(2, '0')} name`}><Input C={C} value={st.name} onChange={(v) => upd({ name: v })} /></Field>
+                <Field C={C} label="Work steps that complete it (one per line)"><TextArea C={C} rows={2} value={(st.steps || []).join('\n')} onChange={(v) => upd({ steps: v.split('\n').map((x) => x.trim()).filter(Boolean) })} /></Field>
+                <Field C={C} label="Workflows (comma separated)"><Input C={C} value={(st.workflows || []).join(', ')} onChange={(v) => upd({ workflows: v.split(',').map((x) => x.trim()).filter(Boolean) })} /></Field>
+              </Grid>
+            )
+          })}
+          <Row style={{ marginTop: 10 }}><Btn C={C} small ghost onClick={() => updateSettings((x) => ({ ...x, journey: DEFAULT_JOURNEY }))}>Reset to the 11 standard stages</Btn></Row>
         </Card>
       )}
 

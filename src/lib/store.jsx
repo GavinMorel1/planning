@@ -22,6 +22,10 @@ export function newFamily(name = 'New Family') {
     assessment: { date: today(), incomeMonthly: '', clarityNetWorth: '', protectionPct: '100%', retirementCashNeed: '', cashOnHand: '', cashGrowthPct: 3, dividendPct: 60, growthPct: 30, cashPct: 10, portfolioTotal: '', potentialReturn: '', annualReturn: '', dividendYield: '', gainPct: '', gainAmt: '', lossPct: '', lossAmt: '', numbersSlide: 'firm', nextStepVariant: 'A', caseStudies: [], scorecard: { innovation: '', inspiration: '', infrastructure: '' } },
     gapMeta: { date: today(), topOfMind: '', includeInvestmentSlides: true, includeToolPages: true },
     flowchart: null, presentations: [],
+    journey: { manual: {}, track: 'auto' },
+    team: { rm: '', associateRm: '', planners: [] },
+    money: { contract: 'not_sent', payment: 'pending', feeQuoted: '' },
+    relationship: { leadSource: '', referredBy: '', firstMeeting: '', cardSent: '', bookSent: '', lastContact: '' },
   }
 }
 
