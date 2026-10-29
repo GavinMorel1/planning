@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { useStore, useFamily } from '../lib/store'
 import { buildAssessment, buildGap } from '../lib/pptx'
-import { Card, Eyebrow, Title, Btn, Grid, Row, Note, Pill, Check, Empty, Field, Input, TextArea } from '../components/ui'
+import { Card, Eyebrow, Title, Btn, Grid, Row, Note, Pill, Check, Empty, Field, Input, TextArea, SubTabs } from '../components/ui'
 import { download, nowIso, uid, fmtDate } from '../lib/util'
 import { DOC_CATEGORIES } from '../data/docCategories'
-import NumbersCalculator from '../components/NumbersCalculator'
-import { assessmentVariant } from '../lib/pptx'
+import Assessment from './Assessment'
 
 export default function Presentations({ C, isDesktop, setTab }) {
   const { settings } = useStore()
   const [f, patch] = useFamily()
+  const [sub, setSubState] = useState(() => { try { return localStorage.getItem('planning_pres_sub') === 'assessment' ? 'assessment' : 'decks' } catch { return 'decks' } })
+  const setSub = (v) => { setSubState(v); try { localStorage.setItem('planning_pres_sub', v) } catch { /* ignore */ } }
   const [busy, setBusy] = useState('')
   const goals = f.goals || []
   const gm = f.gapMeta || {}
@@ -36,14 +37,23 @@ export default function Presentations({ C, isDesktop, setTab }) {
   }
   const gapOutline = ['Cover', 'Disclosures', 'Two Kinds of Return', 'Our Process (Gap Analysis = today)', 'What you said you want', `Goals and Intentions (${goals.length})`, 'Gap summary (met / missed / cost of inaction)', `One analysis page per goal (${goals.length})`, gm.includeToolPages !== false ? `Recommended tools (${recs.length}, by priority)` : null, gm.includeInvestmentSlides !== false ? 'Investment performance (Dividend, Growth)' : null, 'Balance sheet', 'Estate tax information', `Estate flow chart (editable shapes${f.flowchart?.animation?.enabled ? ', animated' : ''})`, 'Current plan analysis (✓ / ×)', 'Gap summary', "What's top of mind?", 'Team & Advocates', 'Blueprint scope + fee', 'Timeline — first year', 'Next steps (action plan)'].filter(Boolean)
 
+  if (sub === 'assessment') {
+    return (
+      <div>
+        <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'decks', label: 'Decks & history' }, { id: 'assessment', label: 'Assessment intake' }]} />
+        <Assessment C={C} isDesktop={isDesktop} setTab={setTab} />
+      </div>
+    )
+  }
   return (
     <div>
+      <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'decks', label: 'Decks & history' }, { id: 'assessment', label: 'Assessment intake' }]} />
       <Title C={C} isDesktop={isDesktop} sub="Editable PowerPoint files built from everything entered for this family, slide-for-slide in the reference deck layouts and colours.">Presentations · {f.name}</Title>
       <Grid cols={isDesktop ? 2 : 1} gap={14}>
         <Card C={C}>
           <Eyebrow C={C}>Family Capital Assessment</Eyebrow>
           <div style={{ fontSize: 12.5, color: C.t3, lineHeight: 1.5, marginBottom: 10 }}>{f.tier === 'under5' ? 'Under-$5M variant' : '$5M+ variant'}. Intake fields live in the Assessment tab.</div>
-          <Row><Btn C={C} primary disabled={!!busy} onClick={() => run('assessment')}>{busy === 'assessment' ? 'Building…' : 'Download .pptx'}</Btn><Btn C={C} ghost onClick={() => setTab('assessment')}>Edit intake</Btn></Row>
+          <Row><Btn C={C} primary disabled={!!busy} onClick={() => run('assessment')}>{busy === 'assessment' ? 'Building…' : 'Download .pptx'}</Btn><Btn C={C} ghost onClick={() => setSub('assessment')}>Edit intake</Btn></Row>
         </Card>
         <Card C={C}>
           <Eyebrow C={C}>Family Capital Gap Analysis</Eyebrow>
@@ -72,10 +82,6 @@ export default function Presentations({ C, isDesktop, setTab }) {
           <ol style={{ paddingLeft: 20, fontSize: 12.5, color: C.t2, lineHeight: 1.8 }}>{gapOutline.map((x) => <li key={x}>{x}</li>)}</ol>
         </Card>
       </Grid>
-      <div style={{ marginTop: 14 }}>
-        <Eyebrow C={C}>Assessment slide · What the Numbers Reveal</Eyebrow>
-        <NumbersCalculator C={C} f={f} patch={patch} settings={settings} isDesktop={isDesktop} variant={assessmentVariant(f)} />
-      </div>
       <Card C={C} style={{ marginTop: 14 }}>
         <Eyebrow C={C}>History</Eyebrow>
         {!(f.presentations || []).length ? <div style={{ fontSize: 12.5, color: C.t4 }}>No decks generated yet.</div> : [...f.presentations].reverse().map((p) => (

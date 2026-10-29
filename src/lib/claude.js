@@ -110,3 +110,35 @@ export async function ask(prompt, { maxTokens = 8000 } = {}) {
   const d = await messages({ max_tokens: maxTokens, system: SYSTEM, messages: [{ role: 'user', content: prompt }] })
   return textOf(d)
 }
+
+// ─── Cash-flow intake: one document in, proposed model changes out (nothing is saved here) ───
+import { intakeSchema, INTAKE_SYSTEM_RULES, intakeFieldGuide, existingRecordHints } from '../cashflow/intake'
+import { xlsxToText } from './xlsxText'
+
+export const INTAKE_MAX_BYTES = 20 * 1024 * 1024
+export const INTAKE_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.gif,.csv,.xlsx,.xls,.txt'
+
+export async function extractCashflow(file, { familyName, model } = {}) {
+  if (file.size > INTAKE_MAX_BYTES) throw new Error(`${file.name} is larger than ${INTAKE_MAX_BYTES / 1024 / 1024} MB.`)
+  const name = file.name
+  const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(name)
+  const isImage = /^image\//.test(file.type) || /\.(png|jpe?g|webp|gif)$/i.test(name)
+  const isXlsx = /\.xlsx$/i.test(name)
+  if (/\.xls$/i.test(name)) throw new Error(`${name}: old .xls files are not supported. Save as .xlsx or .csv and drop it again.`)
+  const content = []
+  if (isPdf) content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: await fileToBase64(file) }, title: name })
+  else if (isImage) content.push({ type: 'image', source: { type: 'base64', media_type: file.type || 'image/png', data: await fileToBase64(file) } })
+  else if (isXlsx) content.push({ type: 'text', text: `SPREADSHEET ${name} (tab-separated, one block per sheet):\n${await xlsxToText(await file.arrayBuffer())}` })
+  else content.push({ type: 'text', text: `FILE ${name}:\n${(await file.text()).slice(0, 150000)}` })
+  content.push({ type: 'text', text: `Document file name: ${name}\nFamily: ${familyName || 'client'}\n\nFields you may extract (collection: field (type)):\n${intakeFieldGuide()}\n\n${existingRecordHints(model)}\n\nRead the document and return the extraction. Set source_file to exactly "${name}".` })
+  const d = await messages({ max_tokens: 16000, system: `${SYSTEM}\n\n${INTAKE_SYSTEM_RULES}`, output_config: { format: { type: 'json_schema', schema: intakeSchema() } }, messages: [{ role: 'user', content }] })
+  const out = jsonOf(d)
+  return { ...out, source_file: name }
+}
+
+// ─── Plain-English narrative for client reports (editable by the planner before export) ───
+export async function writeNarrative({ familyName, facts, tone = 'warm, plain-English, professional' }) {
+  const prompt = `Write a short client-ready narrative (about 250 to 350 words, 3 to 5 short paragraphs, no headings, no bullet points) summarising these cash-flow planning results for the ${familyName} family. Tone: ${tone}. Use only the numbers provided; do not invent figures, do not promise outcomes, and note that projections are hypothetical. Say plainly when something needs attention.\n\nRESULTS (JSON)\n${JSON.stringify(facts, null, 1)}`
+  const d = await messages({ max_tokens: 2000, system: SYSTEM, messages: [{ role: 'user', content: prompt }] })
+  return textOf(d).trim()
+}
