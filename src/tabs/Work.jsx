@@ -12,12 +12,28 @@ import {
 } from '../lib/work'
 import { WORKFLOWS, WORKFLOW_BY_ID, workflowTaskCount } from '../data/workflows'
 
-const COLS = '34px minmax(220px,1fr) 130px 150px 112px 88px 56px 140px'
+const COLS = '30px minmax(190px,1fr) 112px 124px 104px 80px 48px 96px'
 const VIEW_KEY = 'planning_work_view'
 const TAB_KEY = 'planning_work_tab'
 const rosterPhoto = (p) => {
   const src = p?.photo || DEFAULT_ROSTER.find((d) => d.name === p?.name)?.photo
   return src ? (src.startsWith('data:') ? src : `${import.meta.env.BASE_URL || '/'}${src}`) : ''
+}
+
+// Projects belong to the workflow they were created from (project.workflow); anything else is "Other projects".
+const wfKey = (p) => p.workflow || 'other'
+const WF_ORDER = [...WORKFLOWS.map((w) => w.id), 'standard', 'other']
+const wfMeta = (key) => (WORKFLOW_BY_ID[key] ? { name: WORKFLOW_BY_ID[key].short, color: WORKFLOW_BY_ID[key].color } : key === 'standard' ? { name: 'Generic engagement', color: '#C9A84C' } : { name: 'Other projects', color: '#8A90A0' })
+function workflowGroups(projects, tasks) {
+  const map = {}
+  projects.forEach((p) => { const k = wfKey(p); (map[k] = map[k] || { key: k, ...wfMeta(k), projects: 0, total: 0, closed: 0 }).projects++ })
+  tasks.forEach((t) => {
+    const p = projects.find((x) => x.id === t.projectId)
+    const g = map[p ? wfKey(p) : 'other']
+    if (!g) return
+    g.total++; if (isClosed(t.status)) g.closed++
+  })
+  return Object.values(map).sort((a, b) => WF_ORDER.indexOf(a.key) - WF_ORDER.indexOf(b.key))
 }
 
 export default function Work(props) {
@@ -30,7 +46,13 @@ function WorkInner({ C, isDesktop, f }) {
   const { settings, putFile, getFile, removeFile } = useStore()
   const { email } = useAuth()
   const W = useWork(f.id)
-  const { projects, tasks } = W
+  const { projects: allProjects, tasks: allTasks } = W
+  const [wf, setWfState] = useState(() => { try { return sessionStorage.getItem(`planning_work_wf_${f.id}`) || 'all' } catch { return 'all' } })
+  const setWf = (v) => { setWfState(v); try { sessionStorage.setItem(`planning_work_wf_${f.id}`, v) } catch { /* ignore */ } }
+  const wfGroups = useMemo(() => workflowGroups(allProjects, allTasks), [allProjects, allTasks])
+  const wfActive = wf === 'all' || wfGroups.some((g) => g.key === wf) ? wf : 'all'
+  const projects = useMemo(() => (wfActive === 'all' ? allProjects : allProjects.filter((p) => wfKey(p) === wfActive)), [allProjects, wfActive])
+  const tasks = useMemo(() => { if (wfActive === 'all') return allTasks; const ids = new Set(projects.map((p) => p.id)); return allTasks.filter((t) => ids.has(t.projectId)) }, [allTasks, projects, wfActive])
   const me = String(email || '').toLowerCase()
   const roster = useMemo(() => (settings.roster || []).filter((p) => p.name), [settings.roster])
   const ownerOptions = useMemo(() => [{ value: '', label: 'Unassigned' }, ...(me ? [{ value: me, label: `Me (${me})` }] : []), ...roster.map((p) => ({ value: p.name, label: p.name }))], [roster, me])
@@ -93,8 +115,8 @@ function WorkInner({ C, isDesktop, f }) {
     const fresh = [...now].filter((id) => !prev.has(id))
     if (fresh.length) say(`${fresh.length} task${fresh.length > 1 ? 's' : ''} moved to Work completed.`, 'info')
   }, [closedTasks, W.ready])
-  const toImport = useMemo(() => planToolImport(f, tasks, today), [f, tasks, today])
-  const openTask = tasks.find((t) => t.id === openId) || null
+  const toImport = useMemo(() => planToolImport(f, allTasks, today), [f, allTasks, today])
+  const openTask = allTasks.find((t) => t.id === openId) || null
   const selIds = useMemo(() => tasks.filter((t) => sel.has(t.id)).map((t) => t.id), [tasks, sel])
   useEffect(() => { if (openId && !openTask && W.ready) setOpenId(null) }, [openId, openTask, W.ready])
 
@@ -104,9 +126,9 @@ function WorkInner({ C, isDesktop, f }) {
   }, [ownerOptions, tasks])
 
   /* ── actions ── */
-  const newProject = () => { const id = W.addProject({ name: 'New project' }); setEditProj(id) }
+  const newProject = () => { const id = W.addProject({ name: 'New project', ...(wfActive !== 'all' && wfActive !== 'other' ? { workflow: wfActive } : {}) }); setEditProj(id) }
   const newTask = () => {
-    const pid = projects[0]?.id || W.addProject({ name: 'General' })
+    const pid = projects[0]?.id || W.addProject({ name: 'General', ...(wfActive !== 'all' && wfActive !== 'other' ? { workflow: wfActive } : {}) })
     setFlt({ owner: '', status: '', mine: false, overdue: false, q: '' })
     const id = W.addTask({ projectId: pid, title: '' })
     if (isDesktop) setEditId(id); else setOpenId(id)
@@ -118,6 +140,7 @@ function WorkInner({ C, isDesktop, f }) {
     const w = WORKFLOW_BY_ID[id]
     const { projects: ps, tasks: ts } = w ? buildWorkflow(id, start) : buildTemplate(start)
     W.addMany(ps, ts)
+    setWf(w ? w.id : 'standard')
     setModal(null)
     say(`Created ${ps.length} projects and ${ts.length} tasks from ${w ? `the ${w.name} workflow` : 'the standard engagement'}, starting ${shortDate(start)}.`)
   }
@@ -155,7 +178,7 @@ function WorkInner({ C, isDesktop, f }) {
     )
   }
 
-  const empty = W.ready && !projects.length && !tasks.length
+  const empty = W.ready && !allProjects.length && !allTasks.length
 
   return (
     <div>
@@ -174,8 +197,11 @@ function WorkInner({ C, isDesktop, f }) {
       {!W.ready ? <Spinner C={C} label="Loading work…" /> : empty ? (
         <FirstRun C={C} onTemplate={() => setModal('template')} onProject={newProject} onImport={importTools} importCount={toImport.length} />
       ) : (
-        <>
-          <RollUp C={C} family={f.name} projects={projects} tasks={tasks} doneProjects={doneProjectIds.size} />
+        <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '196px minmax(0, 1fr)' : 'minmax(0, 1fr)', gap: isDesktop ? 16 : 10, alignItems: 'start' }}>
+         <WorkSidebar C={C} isDesktop={isDesktop} groups={wfGroups} active={wfActive} onPick={(k) => { setWf(k); setSelectMode(false) }} allTotal={allTasks.length} allClosed={allTasks.filter((t) => isClosed(t.status)).length} onTemplate={() => setModal('template')} />
+         <div style={{ minWidth: 0 }}>
+          <RollUp C={C} family={f.name} label={wfActive === 'all' ? '' : wfMeta(wfActive).name} projects={projects} tasks={tasks} doneProjects={doneProjectIds.size}
+            onDelete={wfActive === 'all' ? null : () => { projects.forEach((p) => W.removeProject(p.id)); setWf('all'); say(`Deleted the ${wfMeta(wfActive).name} workflow (${projects.length} project${projects.length === 1 ? '' : 's'}).`, 'info') }} />
           <div style={{ margin: '0 0 14px' }}>
             <Seg C={C} value={tab} onChange={(v) => { setTab(v); setSelectMode(false) }} options={[{ id: 'open', label: `Open work · ${tasks.length - closedTasks.length}` }, { id: 'done', label: `Work completed · ${closedTasks.length}` }]} />
           </div>
@@ -206,18 +232,58 @@ function WorkInner({ C, isDesktop, f }) {
               )}
             </>
           )}
-        </>
+         </div>
+        </div>
       )}
 
       {openTask && <TaskPanel {...shared} f={f} W={W} task={openTask} projects={projects} onClose={() => setOpenId(null)} putFile={putFile} getFile={getFile} removeFile={removeFile} email={me} />}
-      {modal === 'template' && <TemplateModal C={C} isDark={isDark} projects={projects} onClose={() => setModal(null)} onCreate={createTemplate} />}
+      {modal === 'template' && <TemplateModal C={C} isDark={isDark} projects={allProjects} onClose={() => setModal(null)} onCreate={createTemplate} />}
     </div>
+  )
+}
+
+/* ───────────────────────── workflow sidebar ───────────────────────── */
+
+function WorkSidebar({ C, isDesktop, groups, active, onPick, allTotal, allClosed, onTemplate }) {
+  const items = [{ key: 'all', name: 'All work', color: C.accent, total: allTotal, closed: allClosed, projects: groups.reduce((n, g) => n + g.projects, 0) }, ...groups]
+  if (!isDesktop) {
+    return (
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+        {items.map((g) => (
+          <button key={g.key} onClick={() => onPick(g.key)} aria-pressed={active === g.key} style={{ flex: '0 0 auto', padding: '8px 12px', borderRadius: 10, border: `1px solid ${active === g.key ? g.color : C.border}`, background: active === g.key ? C.accentSoft : 'transparent', color: active === g.key ? C.t1 : C.t3, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: g.color, marginRight: 7 }} />{g.name} · {g.closed}/{g.total}
+          </button>
+        ))}
+        <button onClick={onTemplate} style={{ flex: '0 0 auto', padding: '8px 12px', borderRadius: 10, border: `1px dashed ${C.border}`, background: 'transparent', color: C.t3, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>+ Workflow</button>
+      </div>
+    )
+  }
+  return (
+    <nav aria-label="Workflows" style={{ position: 'sticky', top: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '10px 8px' }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color: C.t4, textTransform: 'uppercase', letterSpacing: 1.2, padding: '2px 8px 8px' }}>Workflows</div>
+      {items.map((g) => {
+        const on = active === g.key
+        const pct = g.total ? Math.round((g.closed / g.total) * 100) : 0
+        return (
+          <button key={g.key} onClick={() => onPick(g.key)} aria-current={on ? 'page' : undefined} title={`${g.name}: ${g.closed} of ${g.total} tasks done`}
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginBottom: 2, borderRadius: 10, border: 'none', borderLeft: `3px solid ${on ? g.color : 'transparent'}`, background: on ? C.accentSoft : 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: g.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: on ? 800 : 600, color: on ? C.t1 : C.t2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</span>
+              <span style={{ fontSize: 11, color: C.t4, fontVariantNumeric: 'tabular-nums' }}>{g.closed}/{g.total}</span>
+            </div>
+            <div style={{ height: 3, borderRadius: 2, background: C.border, marginTop: 6, overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', background: g.key === 'all' ? C.accent : g.color }} /></div>
+          </button>
+        )
+      })}
+      <button onClick={onTemplate} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 6, padding: '8px 10px', borderRadius: 10, border: `1px dashed ${C.border}`, background: 'transparent', color: C.t3, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>+ Add workflow</button>
+    </nav>
   )
 }
 
 /* ───────────────────────── roll-up and completed ───────────────────────── */
 
-function RollUp({ C, family, projects, tasks, doneProjects }) {
+function RollUp({ C, family, label, projects, tasks, doneProjects, onDelete }) {
   const subs = tasks.reduce((n, t) => n + t.subtasks.length, 0)
   const subsDone = tasks.reduce((n, t) => n + t.subtasks.filter((x) => x.done).length, 0)
   const closed = tasks.filter((t) => isClosed(t.status)).length
@@ -226,8 +292,8 @@ function RollUp({ C, family, projects, tasks, doneProjects }) {
     <Card C={C} style={{ padding: '14px 16px', marginBottom: 14, borderLeft: `4px solid ${C.accent}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.t4, textTransform: 'uppercase', letterSpacing: 1 }}>Family</div>
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.t1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{family}</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: C.t4, textTransform: 'uppercase', letterSpacing: 1 }}>{label ? 'Family · workflow' : 'Family'}</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.t1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{family}{label ? <span style={{ color: C.accent }}> · {label}</span> : null}</div>
         </div>
         <RollNum C={C} label="Projects" value={projects.length} sub={doneProjects ? `${doneProjects} complete` : ''} />
         <RollNum C={C} label="Tasks" value={tasks.length} sub={`${closed} complete`} />
@@ -236,6 +302,7 @@ function RollUp({ C, family, projects, tasks, doneProjects }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.t3, marginBottom: 4 }}><span>Overall</span><b style={{ color: C.t1 }}>{pct}%</b></div>
           <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', background: C.up }} /></div>
         </div>
+        {onDelete && <Confirm C={C} onConfirm={onDelete}>Delete workflow</Confirm>}
       </div>
     </Card>
   )
@@ -473,7 +540,7 @@ function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects
   if (!isDesktop) return <div>{body}</div>
   return (
     <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-      <div style={{ minWidth: 960 }}>
+      <div style={{ minWidth: 840 }}>
         <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: 8, padding: '0 16px 6px 20px', fontSize: 10, fontWeight: 700, color: C.t4, textTransform: 'uppercase', letterSpacing: 1 }}>
           <span /><span>Task</span><span>Owner</span><span>Status</span><span>Due</span><span>Priority</span><span>Files</span><span>Updated</span>
         </div>
@@ -492,20 +559,20 @@ function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, 
   useEffect(() => { if (editing && ref.current) { ref.current.focus(); ref.current.select() } }, [editing])
   const nextColor = () => W.updateProject(p.id, { color: PROJECT_COLORS[(PROJECT_COLORS.indexOf(p.color) + 1) % PROJECT_COLORS.length] })
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: isDesktop ? 12 : 8, flexWrap: 'wrap', padding: '10px 14px', borderBottom: p.collapsed ? 'none' : `1px solid ${C.border}`, background: C.surface }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: isDesktop ? 8 : 8, flexWrap: 'wrap', padding: '10px 12px', borderBottom: p.collapsed ? 'none' : `1px solid ${C.border}`, background: C.surface }}>
       {selectMode && <input type="checkbox" aria-label="Select every task in this project" checked={allSelected} onChange={(e) => onSelectAll(e.target.checked)} style={{ accentColor: C.accent, width: 16, height: 16, cursor: 'pointer' }} />}
       <button aria-label={p.collapsed ? 'Expand project' : 'Collapse project'} onClick={() => W.updateProject(p.id, { collapsed: !p.collapsed })} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><Chevron color={p.color} open={!p.collapsed} /></button>
       <button title="Change colour" aria-label="Change project colour" onClick={nextColor} style={{ width: 12, height: 22, borderRadius: 3, background: p.color, border: 'none', cursor: 'pointer', padding: 0 }} />
       <input ref={ref} aria-label="Project name" className="wk-ghost" value={p.name} placeholder="Project name" onFocus={() => setEditing(p.id)} onBlur={() => setEditing(null)} onChange={(e) => W.updateProject(p.id, { name: e.target.value })}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur() }}
-        style={{ flex: '1 1 160px', minWidth: 120, padding: '5px 8px', borderRadius: 8, fontSize: 15, fontWeight: 800, outline: 'none' }} />
+        style={{ flex: '1 1 150px', minWidth: 110, padding: '5px 8px', borderRadius: 8, fontSize: 15, fontWeight: 800, outline: 'none' }} />
       <span style={{ fontSize: 11.5, color: C.t3, whiteSpace: 'nowrap' }}>{done}/{all.length} task{all.length === 1 ? '' : 's'}{subTotal > 0 ? ` · ${subDone}/${subTotal} subtasks` : ''}</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 110 }} title={`${done} of ${all.length} done`}>
-        <div style={{ flex: 1, height: 6, borderRadius: 3, background: C.border, overflow: 'hidden', minWidth: 60 }}><div style={{ width: `${pct}%`, height: '100%', background: C.up }} /></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 84 }} title={`${done} of ${all.length} done`}>
+        <div style={{ flex: 1, height: 6, borderRadius: 3, background: C.border, overflow: 'hidden', minWidth: 40 }}><div style={{ width: `${pct}%`, height: '100%', background: C.up }} /></div>
         <span style={{ fontSize: 11, color: C.t3, fontVariantNumeric: 'tabular-nums', width: 32 }}>{pct}%</span>
       </div>
-      <OwnerSelect C={C} value={p.owner} onChange={(v) => W.updateProject(p.id, { owner: v })} ownerOptions={ownerOptions} roster={roster} me={me} showName={isDesktop} label="Project owner" />
-      <div style={{ width: 128 }}><DueInput C={C} value={p.due} onChange={(v) => W.updateProject(p.id, { due: v })} isDark={isDark} label="Project due date" /></div>
+      <OwnerSelect C={C} value={p.owner} onChange={(v) => W.updateProject(p.id, { owner: v })} ownerOptions={ownerOptions} roster={roster} me={me} showName={false} label="Project owner" />
+      <div style={{ width: 116 }}><DueInput C={C} value={p.due} onChange={(v) => W.updateProject(p.id, { due: v })} isDark={isDark} label="Project due date" /></div>
       <select aria-label="Project status" value={p.status} onChange={(e) => W.updateProject(p.id, { status: e.target.value })} style={{ padding: '4px 6px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.t2, fontSize: 11.5, fontFamily: 'inherit' }}>
         {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>

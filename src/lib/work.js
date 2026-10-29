@@ -118,7 +118,7 @@ export function buildTemplate(startIso) {
   const tasks = []
   ENGAGEMENT_TEMPLATE.forEach((p, i) => {
     const key = `tpl-${i}`
-    projects.push({ _key: key, name: p.name, color: p.color || PROJECT_COLORS[i % PROJECT_COLORS.length], due: addDays(startIso, Math.max(...p.tasks.map((t) => t.day))) })
+    projects.push({ _key: key, name: p.name, color: p.color || PROJECT_COLORS[i % PROJECT_COLORS.length], due: addDays(startIso, Math.max(...p.tasks.map((t) => t.day))), workflow: 'standard' })
     p.tasks.forEach((t) => tasks.push({ projectKey: key, title: t.title, due: addDays(startIso, t.day), priority: t.priority || 'medium', owner: '' }))
   })
   return { projects, tasks }
