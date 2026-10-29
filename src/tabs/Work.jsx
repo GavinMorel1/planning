@@ -40,6 +40,10 @@ function WorkInner({ C, isDesktop, f }) {
   const [editId, setEditId] = useState(null)
   const [editProj, setEditProj] = useState(null)
   const [modal, setModal] = useState(null) // 'template'
+  const [selectMode, setSelectModeState] = useState(false)
+  const [sel, setSel] = useState(() => new Set())
+  const setSelectMode = (on) => { setSelectModeState(on); if (!on) setSel(new Set()) }
+  const toggleSel = (ids, on) => setSel((cur) => { const n = new Set(cur); ids.forEach((id) => (on ?? !n.has(id) ? n.add(id) : n.delete(id))); return n })
   const [flash, setFlash] = useState(null)
   const say = (t, tone = 'success') => { setFlash({ t, tone }); setTimeout(() => setFlash((x) => (x && x.t === t ? null : x)), 6000) }
   const isDark = C === DARK
@@ -74,6 +78,7 @@ function WorkInner({ C, isDesktop, f }) {
   }, [tasks, flt, me, today, projName])
   const toImport = useMemo(() => planToolImport(f, tasks, today), [f, tasks, today])
   const openTask = tasks.find((t) => t.id === openId) || null
+  const selIds = useMemo(() => tasks.filter((t) => sel.has(t.id)).map((t) => t.id), [tasks, sel])
   useEffect(() => { if (openId && !openTask && W.ready) setOpenId(null) }, [openId, openTask, W.ready])
 
   const ownerFilterOptions = useMemo(() => {
@@ -162,10 +167,11 @@ function WorkInner({ C, isDesktop, f }) {
           </div>
 
           <Toolbar C={C} isDesktop={isDesktop} view={view} setView={setView} flt={flt} setFlt={setFlt} ownerFilterOptions={ownerFilterOptions}
-            onTemplate={() => setModal('template')} onImport={importTools} importCount={toImport.length} />
+            onTemplate={() => setModal('template')} onImport={importTools} importCount={toImport.length} selectMode={selectMode} setSelectMode={setSelectMode} />
+          {selectMode && <BulkBar C={C} ids={selIds} visibleIds={visible.map((t) => t.id)} ownerOptions={ownerOptions} W={W} onSelect={(ids) => setSel(new Set(ids))} onDone={() => setSelectMode(false)} say={say} />}
 
           {view === 'table' ? (
-            <TableView {...shared} W={W} projects={projects} visible={visible} filtersOn={filtersOn} editId={editId} setEditId={setEditId} editProj={editProj} setEditProj={setEditProj}
+            <TableView {...shared} W={W} projects={projects} visible={visible} filtersOn={filtersOn} editId={editId} setEditId={setEditId} editProj={editProj} setEditProj={setEditProj} selectMode={selectMode} sel={sel} toggleSel={toggleSel}
               onOpen={setOpenId} onToggle={toggleDone} onDuplicate={duplicate} onAdd={addToGroup} today={today} />
           ) : (
             <BoardView {...shared} W={W} projects={projects} visible={visible} onOpen={setOpenId} today={today} />
@@ -265,7 +271,7 @@ function Toggle2({ C, on, onClick, children }) {
   return <button onClick={onClick} aria-pressed={on} style={{ padding: '8px 13px', borderRadius: 10, border: `1px solid ${on ? C.accent : C.border}`, background: on ? C.accentSoft : 'transparent', color: on ? C.t1 : C.t3, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>{children}</button>
 }
 
-function Toolbar({ C, isDesktop, view, setView, flt, setFlt, ownerFilterOptions, onTemplate, onImport, importCount }) {
+function Toolbar({ C, isDesktop, view, setView, flt, setFlt, ownerFilterOptions, onTemplate, onImport, importCount, selectMode, setSelectMode }) {
   const set = (p) => setFlt((x) => ({ ...x, ...p }))
   const anyFilter = flt.owner || flt.status || flt.mine || flt.overdue || flt.q
   return (
@@ -279,6 +285,7 @@ function Toolbar({ C, isDesktop, view, setView, flt, setFlt, ownerFilterOptions,
         <Toggle2 C={C} on={flt.overdue} onClick={() => set({ overdue: !flt.overdue })}>Overdue</Toggle2>
         {anyFilter && <Btn C={C} small ghost onClick={() => setFlt({ owner: '', status: '', mine: false, overdue: false, q: '' })}>Clear</Btn>}
         <span style={{ flex: 1 }} />
+        <Toggle2 C={C} on={selectMode} onClick={() => setSelectMode(!selectMode)}>{selectMode ? 'Done selecting' : 'Select tasks'}</Toggle2>
         <Btn C={C} small onClick={onTemplate}>Start from template</Btn>
         <Btn C={C} small onClick={onImport} title="Create tasks from the tools accepted in Priorities">Import accepted tools{importCount ? ` (${importCount})` : ''}</Btn>
       </div>
@@ -304,7 +311,7 @@ function FirstRun({ C, onTemplate, onProject, onImport, importCount }) {
 
 /* ───────────────────────── table view ───────────────────────── */
 
-function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects, visible, filtersOn, editId, setEditId, editProj, setEditProj, onOpen, onToggle, onDuplicate, onAdd, today }) {
+function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects, visible, filtersOn, editId, setEditId, editProj, setEditProj, selectMode, sel, toggleSel, onOpen, onToggle, onDuplicate, onAdd, today }) {
   const groups = projects.map((p) => ({ p, tasks: visible.filter((t) => t.projectId === p.id) }))
   const orphans = visible.filter((t) => !projects.some((p) => p.id === t.projectId))
   const shown = groups.filter((g) => !filtersOn || g.tasks.length)
@@ -313,13 +320,19 @@ function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects
     <>
       {shown.map(({ p, tasks }) => (
         <div key={p.id} style={{ marginBottom: 14, border: `1px solid ${C.border}`, borderRadius: 14, background: C.card, overflow: 'hidden', borderLeft: `4px solid ${p.color}` }}>
-          <ProjectHeader C={C} isDesktop={isDesktop} isDark={isDark} p={p} all={allTasks(p.id)} W={W} ownerOptions={ownerOptions} roster={roster} me={me} editing={editProj === p.id} setEditing={setEditProj} />
+          <ProjectHeader C={C} isDesktop={isDesktop} isDark={isDark} p={p} all={allTasks(p.id)} W={W} ownerOptions={ownerOptions} roster={roster} me={me} editing={editProj === p.id} setEditing={setEditProj}
+            pos={{ first: projects[0]?.id === p.id, last: projects[projects.length - 1]?.id === p.id }}
+            selectMode={selectMode} allSelected={tasks.length > 0 && tasks.every((t) => sel.has(t.id))} onSelectAll={(on) => toggleSel(tasks.map((t) => t.id), on)} />
           {!p.collapsed && (
             <>
-              {tasks.map((t) => (
-                <TaskRow key={t.id} C={C} isDesktop={isDesktop} isDark={isDark} t={t} W={W} ownerOptions={ownerOptions} roster={roster} me={me} today={today}
-                  editing={editId === t.id} setEditId={setEditId} onOpen={onOpen} onToggle={onToggle} onDuplicate={onDuplicate} />
-              ))}
+              {tasks.map((t) => {
+                const sibs = allTasks(p.id)
+                return (
+                  <TaskRow key={t.id} C={C} isDesktop={isDesktop} isDark={isDark} t={t} W={W} ownerOptions={ownerOptions} roster={roster} me={me} today={today}
+                    editing={editId === t.id} setEditId={setEditId} onOpen={onOpen} onToggle={onToggle} onDuplicate={onDuplicate}
+                    pos={{ first: sibs[0]?.id === t.id, last: sibs[sibs.length - 1]?.id === t.id }} selectMode={selectMode} selected={sel.has(t.id)} onSelect={() => toggleSel([t.id])} />
+                )
+              })}
               {!tasks.length && filtersOn === false && <div style={{ padding: '10px 16px', fontSize: 12, color: C.t4 }}>No tasks yet.</div>}
               <AddRow C={C} onAdd={(title) => onAdd(p.id, title)} />
             </>
@@ -343,7 +356,7 @@ function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects
   )
 }
 
-function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, me, editing, setEditing }) {
+function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, me, editing, setEditing, pos, selectMode, allSelected, onSelectAll }) {
   const done = all.filter((t) => isClosed(t.status)).length
   const pct = all.length ? Math.round((done / all.length) * 100) : 0
   const ref = useRef(null)
@@ -351,6 +364,7 @@ function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, 
   const nextColor = () => W.updateProject(p.id, { color: PROJECT_COLORS[(PROJECT_COLORS.indexOf(p.color) + 1) % PROJECT_COLORS.length] })
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: isDesktop ? 12 : 8, flexWrap: 'wrap', padding: '10px 14px', borderBottom: p.collapsed ? 'none' : `1px solid ${C.border}`, background: C.surface }}>
+      {selectMode && <input type="checkbox" aria-label="Select every task in this project" checked={allSelected} onChange={(e) => onSelectAll(e.target.checked)} style={{ accentColor: C.accent, width: 16, height: 16, cursor: 'pointer' }} />}
       <button aria-label={p.collapsed ? 'Expand project' : 'Collapse project'} onClick={() => W.updateProject(p.id, { collapsed: !p.collapsed })} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><Chevron color={p.color} open={!p.collapsed} /></button>
       <button title="Change colour" aria-label="Change project colour" onClick={nextColor} style={{ width: 12, height: 22, borderRadius: 3, background: p.color, border: 'none', cursor: 'pointer', padding: 0 }} />
       <input ref={ref} aria-label="Project name" className="wk-ghost" value={p.name} placeholder="Project name" onFocus={() => setEditing(p.id)} onBlur={() => setEditing(null)} onChange={(e) => W.updateProject(p.id, { name: e.target.value })}
@@ -366,8 +380,35 @@ function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, 
       <select aria-label="Project status" value={p.status} onChange={(e) => W.updateProject(p.id, { status: e.target.value })} style={{ padding: '4px 6px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.t2, fontSize: 11.5, fontFamily: 'inherit' }}>
         {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
+      <MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(p.id, d)} what="project" />
       <Confirm C={C} onConfirm={() => W.removeProject(p.id)}>Delete</Confirm>
     </div>
+  )
+}
+
+function MoveBtns({ C, pos, onMove, what }) {
+  const b = (dir, label, off) => <button aria-label={`Move ${what} ${label}`} title={`Move ${label}`} disabled={off} onClick={() => onMove(dir)} style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${C.border}`, background: C.card, color: off ? C.t4 : C.t1, cursor: off ? 'default' : 'pointer', opacity: off ? 0.4 : 1, fontSize: 12, lineHeight: 1, padding: 0 }}>{dir < 0 ? '▲' : '▼'}</button>
+  return <span style={{ display: 'inline-flex', gap: 4 }}>{b(-1, 'up', pos.first)}{b(1, 'down', pos.last)}</span>
+}
+
+function BulkBar({ C, ids, visibleIds, ownerOptions, W, onSelect, onDone, say }) {
+  const n = ids.length
+  const apply = (patch, what) => { W.updateTasks(ids, patch); say(`${what} for ${n} task${n === 1 ? '' : 's'}.`) }
+  const ownerOpts = [{ value: '__', label: 'Assign owner…' }, ...ownerOptions.map((o) => (o.value ? o : { value: '__none', label: 'Unassigned' }))]
+  return (
+    <Card C={C} accent style={{ padding: '12px 14px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: C.t1 }}>{n} selected</span>
+        <Btn C={C} small ghost onClick={() => onSelect(visibleIds)}>Select all shown</Btn>
+        {n > 0 && <Btn C={C} small ghost onClick={() => onSelect([])}>Clear</Btn>}
+        <span style={{ flex: 1 }} />
+        <Select C={C} value="__" disabled={!n} onChange={(v) => { if (v !== '__') apply({ owner: v === '__none' ? '' : v }, v === '__none' ? 'Owner cleared' : `Assigned to ${v}`) }} options={ownerOpts} style={{ padding: '8px 10px', maxWidth: 170 }} />
+        <Select C={C} value="__" disabled={!n} onChange={(v) => { if (v !== '__') apply({ status: v }, 'Status updated') }} options={[{ value: '__', label: 'Set status…' }, ...STATUSES.map((s) => ({ value: s.id, label: s.label }))]} style={{ padding: '8px 10px', maxWidth: 150 }} />
+        <Select C={C} value="__" disabled={!n} onChange={(v) => { if (v !== '__') apply({ priority: v }, 'Priority updated') }} options={[{ value: '__', label: 'Set priority…' }, ...PRIORITIES.map((p) => ({ value: p.id, label: p.label }))]} style={{ padding: '8px 10px', maxWidth: 140 }} />
+        {n > 0 ? <Confirm C={C} onConfirm={() => { W.removeTasks(ids); onSelect([]); say(`Deleted ${n} task${n === 1 ? '' : 's'}.`) }}>{`Delete ${n}`}</Confirm> : <Btn C={C} small disabled>Delete</Btn>}
+        <Btn C={C} small onClick={onDone}>Done</Btn>
+      </div>
+    </Card>
   )
 }
 
@@ -396,9 +437,11 @@ function TitleCell({ C, t, editing, setEditId, onChange, onOpen, compact }) {
   )
 }
 
-function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, editing, setEditId, onOpen, onToggle, onDuplicate }) {
+function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, editing, setEditId, onOpen, onToggle, onDuplicate, pos, selectMode, selected, onSelect }) {
   const overdue = isOverdue(t, today)
-  const check = <input type="checkbox" aria-label="Done" checked={t.status === 'done'} onChange={() => onToggle(t)} style={{ accentColor: C.up, width: 16, height: 16, cursor: 'pointer' }} />
+  const check = selectMode
+    ? <input type="checkbox" aria-label="Select task" checked={selected} onChange={onSelect} style={{ accentColor: C.accent, width: 16, height: 16, cursor: 'pointer' }} />
+    : <input type="checkbox" aria-label="Done" checked={t.status === 'done'} onChange={() => onToggle(t)} style={{ accentColor: C.up, width: 16, height: 16, cursor: 'pointer' }} />
   const upd = (p) => W.updateTask(t.id, p)
   const fileBtn = (
     <button aria-label={`Files (${t.files.length})`} onClick={() => onOpen(t.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, color: t.files.length ? C.t1 : C.t4, fontSize: 12, padding: 2 }}>
@@ -419,13 +462,13 @@ function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, 
           <OwnerSelect C={C} value={t.owner} onChange={(v) => upd({ owner: v })} ownerOptions={ownerOptions} roster={roster} me={me} />
           <div style={{ width: 120 }}><DueInput C={C} value={t.due} onChange={(v) => upd({ due: v })} overdue={overdue} isDark={isDark} /></div>
           {fileBtn}
-          <span style={{ marginLeft: 'auto' }}><PriorityChip C={C} value={t.priority} onChange={(v) => upd({ priority: v })} /></span>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(t.id, d)} what="task" /><PriorityChip C={C} value={t.priority} onChange={(v) => upd({ priority: v })} /></span>
         </div>
       </div>
     )
   }
   return (
-    <div className="wk-row" style={{ position: 'relative', display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '7px 16px 7px 16px', borderTop: `1px solid ${C.border}`, background: C.card }}>
+    <div className="wk-row" style={{ position: 'relative', display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '7px 16px 7px 16px', borderTop: `1px solid ${C.border}`, background: selected ? C.accentSoft : C.card }}>
       <span>{check}</span>
       <TitleCell C={C} t={t} editing={editing} setEditId={setEditId} onChange={(v) => upd({ title: v })} onOpen={() => onOpen(t.id)} />
       <OwnerSelect C={C} value={t.owner} onChange={(v) => upd({ owner: v })} ownerOptions={ownerOptions} roster={roster} me={me} />
@@ -435,6 +478,7 @@ function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, 
       <span>{fileBtn}</span>
       <span style={{ fontSize: 11, color: C.t4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.updatedAt ? `Updated by ${t.updatedBy || 'unknown'} ${new Date(t.updatedAt).toLocaleString()}` : ''}>{t.updatedAt ? `${nameFromEmail(t.updatedBy) || '—'} · ${relTime(t.updatedAt)}` : ''}</span>
       <div className="wk-acts" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, alignItems: 'center', background: C.cardHover, padding: '3px 5px', borderRadius: 10, border: `1px solid ${C.border}` }}>
+        <MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(t.id, d)} what="task" />
         <Btn C={C} small ghost title="Open" onClick={() => onOpen(t.id)}>Open</Btn>
         <Btn C={C} small ghost title="Duplicate" onClick={() => onDuplicate(t)}>Duplicate</Btn>
         <Confirm C={C} onConfirm={() => W.removeTask(t.id)}>Delete</Confirm>

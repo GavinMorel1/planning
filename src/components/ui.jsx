@@ -38,8 +38,8 @@ export const TextArea = ({ C, value, onChange, placeholder, rows = 3, style }) =
   <textarea value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows}
     style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.t1, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5, ...style }} />
 )
-export const Select = ({ C, value, onChange, options, style }) => (
-  <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} style={{ padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.t1, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', outline: 'none', appearance: 'auto', ...style }}>
+export const Select = ({ C, value, onChange, options, style, disabled }) => (
+  <select value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value)} style={{ padding: '9px 10px', borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.t1, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', outline: 'none', appearance: 'auto', ...style }}>
     {options.map((o) => (typeof o === 'string' ? <option key={o} value={o}>{o}</option> : <option key={o.value} value={o.value}>{o.label}</option>))}
   </select>
 )

@@ -455,6 +455,26 @@ export function useWork(familyId) {
     removeIds([...kids.map((r) => r.id), id])
   }, [removeIds, dropUploads])
 
+  // Move a task (within its project) or a project one place up (-1) or down (+1). Orders are renumbered 1..n so ties heal.
+  const moveItem = useCallback((id, dir) => {
+    const cur = rowsRef.current[id]
+    if (!cur) return
+    const kind = cur.kind
+    const sibs = Object.values(rowsRef.current)
+      .filter((r) => r.kind === kind && (kind === 'project' || r.data?.projectId === cur.data?.projectId))
+      .map((r) => (kind === 'task' ? normTask(r) : normProject(r))).sort(byOrder)
+    const i = sibs.findIndex((x) => x.id === id), j = i + dir
+    if (i < 0 || j < 0 || j >= sibs.length) return
+    const arr = [...sibs]; [arr[i], arr[j]] = [arr[j], arr[i]]
+    arr.forEach((x, idx) => { if ((x.order || 0) !== idx + 1) patchRow(x.id, kind, { order: idx + 1 }) })
+  }, [patchRow])
+  const removeTasks = useCallback((ids) => {
+    const real = ids.filter((id) => rowsRef.current[id]?.kind === 'task')
+    real.forEach((id) => dropUploads(normTask(rowsRef.current[id])))
+    removeIds(real)
+  }, [removeIds, dropUploads])
+  const updateTasks = useCallback((ids, patch) => { ids.forEach((id) => updateTask(id, patch)) }, [updateTask])
+
   const addComment = useCallback((taskId, text) => {
     const t = String(text || '').trim()
     if (!t) return
@@ -464,5 +484,5 @@ export function useWork(familyId) {
   const projects = useMemo(() => Object.values(rows).filter((r) => r.kind === 'project').map(normProject).sort(byOrder), [rows])
   const tasks = useMemo(() => Object.values(rows).filter((r) => r.kind === 'task').map(normTask).sort(byOrder), [rows])
 
-  return { projects, tasks, ready, error, missingTable, me, reload: load, clearError: () => setError(''), addProject, updateProject, removeProject, addTask, updateTask, removeTask, addComment, addMany }
+  return { projects, tasks, ready, error, missingTable, me, reload: load, clearError: () => setError(''), addProject, updateProject, removeProject, addTask, updateTask, removeTask, addComment, addMany, moveItem, removeTasks, updateTasks }
 }
