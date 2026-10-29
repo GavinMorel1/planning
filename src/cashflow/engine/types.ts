@@ -45,6 +45,7 @@ export interface ProjectionRow {
   liabilityBalance: number
   netWorth: number // all assets (incl. real estate, business) minus liabilities, end of year
   liquidAssets: number // cash + taxable + traditional + roth + hsa
+  saleProceeds?: number // net proceeds of real estate / business sales this year (after costs and secured debt), added to cash
 }
 
 export interface Projection {
