@@ -1,6 +1,7 @@
 // Claude integration. All calls go through the Cloudflare Worker (VITE_PROXY_URL), which holds
 // the API key. For local development only, VITE_ANTHROPIC_KEY calls the API directly.
 import { fileToBase64 } from './util'
+import { supabase } from './supabase'
 
 const PROXY = (import.meta.env.VITE_PROXY_URL || '').replace(/\/+$/, '')
 const DIRECT_KEY = import.meta.env.VITE_ANTHROPIC_KEY || ''
@@ -12,7 +13,16 @@ async function messages(body) {
   const url = PROXY ? `${PROXY}/anthropic/v1/messages` : 'https://api.anthropic.com/v1/messages'
   const headers = { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-beta': 'server-side-fallback-2026-07-01' }
   if (!PROXY) { headers['x-api-key'] = DIRECT_KEY; headers['anthropic-dangerous-direct-browser-access'] = 'true' }
+  else if (supabase) {
+    // The Worker only serves signed-in users: send the Supabase session token (never an API key).
+    const { data } = await supabase.auth.getSession()
+    const token = data?.session?.access_token
+    if (!token) throw new Error('Sign in again to use Claude (no active session).')
+    headers.Authorization = `Bearer ${token}`
+  }
   const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model: MODEL, fallbacks: 'default', ...body }) })
+  if (r.status === 401) throw new Error('Claude is not available: your login was not accepted by the Worker. Sign out and back in.')
+  if (r.status === 429) throw new Error('Too many Claude requests right now. Wait a minute and try again.')
   if (!r.ok) { const t = await r.text(); throw new Error(`Claude API ${r.status}: ${t.slice(0, 300)}`) }
   const d = await r.json()
   if (d.stop_reason === 'refusal') throw new Error('Claude declined this request.')
