@@ -28,6 +28,7 @@ export const STATUSES = [
 ]
 // A task in either of these is finished as far as counts and overdue flags go.
 export const isClosed = (status) => status === 'done' || status === 'na'
+export const normSub = (s) => ({ id: '', text: '', done: false, owner: '', due: '', ...s })
 export const STATUS_BY_ID = Object.fromEntries(STATUSES.map((s) => [s.id, s]))
 export const PRIORITIES = [
   { id: 'high', label: 'High', color: '#DF4B4B', fg: '#FFFFFF' },
@@ -413,7 +414,7 @@ export function useWork(familyId) {
     if (!p) return
     const data = { ...cur.data, ...p }
     commit({ ...rowsRef.current, [id]: stamp({ ...cur, data }) })
-    schedule(id, TEXT_KEYS.some((k) => typeof p[k] === 'string') ? TEXT_DEBOUNCE_MS : 60)
+    schedule(id, TEXT_KEYS.some((k) => typeof p[k] === 'string') || Array.isArray(p.subtasks) ? TEXT_DEBOUNCE_MS : 60)
   }, [commit, schedule])
   const updateProject = useCallback((id, patch) => patchRow(id, 'project', patch), [patchRow])
   const updateTask = useCallback((id, patch) => {
@@ -455,17 +456,22 @@ export function useWork(familyId) {
     removeIds([...kids.map((r) => r.id), id])
   }, [removeIds, dropUploads])
 
-  // Move a task (within its project) or a project one place up (-1) or down (+1). Orders are renumbered 1..n so ties heal.
-  const moveItem = useCallback((id, dir) => {
+  // Move a task (within its project) or a project one place up (-1) or down (+1), skipping siblings that are not in
+  // `only` (e.g. completed tasks hidden from the open list). Orders are renumbered 1..n so ties heal.
+  const moveItem = useCallback((id, dir, only) => {
     const cur = rowsRef.current[id]
     if (!cur) return
     const kind = cur.kind
     const sibs = Object.values(rowsRef.current)
       .filter((r) => r.kind === kind && (kind === 'project' || r.data?.projectId === cur.data?.projectId))
       .map((r) => (kind === 'task' ? normTask(r) : normProject(r))).sort(byOrder)
-    const i = sibs.findIndex((x) => x.id === id), j = i + dir
-    if (i < 0 || j < 0 || j >= sibs.length) return
-    const arr = [...sibs]; [arr[i], arr[j]] = [arr[j], arr[i]]
+    const allow = Array.isArray(only) ? new Set(only) : null
+    const i = sibs.findIndex((x) => x.id === id)
+    if (i < 0) return
+    let j = i + dir
+    while (j >= 0 && j < sibs.length && allow && !allow.has(sibs[j].id)) j += dir
+    if (j < 0 || j >= sibs.length) return
+    const arr = [...sibs]; const [item] = arr.splice(i, 1); arr.splice(j, 0, item)
     arr.forEach((x, idx) => { if ((x.order || 0) !== idx + 1) patchRow(x.id, kind, { order: idx + 1 }) })
   }, [patchRow])
   const removeTasks = useCallback((ids) => {
@@ -485,4 +491,60 @@ export function useWork(familyId) {
   const tasks = useMemo(() => Object.values(rows).filter((r) => r.kind === 'task').map(normTask).sort(byOrder), [rows])
 
   return { projects, tasks, ready, error, missingTable, me, reload: load, clearError: () => setError(''), addProject, updateProject, removeProject, addTask, updateTask, removeTask, addComment, addMany, moveItem, removeTasks, updateTasks }
+}
+
+// Read-only view of every family's work for the Calendar. Loads all rows once, then follows Realtime (Supabase) or the
+// localStorage `storage` event (local mode). Each task carries its family id and its project's name and colour.
+export function useWorkTimeline() {
+  const [rows, setRows] = useState([])
+  const [ready, setReady] = useState(false)
+  const [missingTable, setMissingTable] = useState(false)
+  useEffect(() => {
+    let alive = true
+    if (!SUPABASE_ENABLED) {
+      const read = () => {
+        try {
+          const all = JSON.parse(localStorage.getItem(LS_KEY) || '{}') || {}
+          const out = []
+          Object.entries(all).forEach(([fid, list]) => (Array.isArray(list) ? list : []).forEach((r) => r && r.id && out.push({ ...r, family_id: r.family_id || fid })))
+          if (alive) setRows(out)
+        } catch { if (alive) setRows([]) }
+      }
+      read(); setReady(true)
+      const onStorage = (e) => { if (e.key === LS_KEY) read() }
+      window.addEventListener('storage', onStorage)
+      return () => { alive = false; window.removeEventListener('storage', onStorage) }
+    }
+    let ch = null
+    const load = async () => {
+      try {
+        const { data, error } = await supabase.from('work_items').select('*')
+        if (error) throw error
+        if (alive) { setRows(data || []); setMissingTable(false) }
+      } catch (e) { if (alive && isMissingTable(e)) setMissingTable(true) } finally { if (alive) setReady(true) }
+    }
+    load()
+    try {
+      ch = supabase.channel(`work_timeline_${Math.random().toString(36).slice(2, 8)}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'work_items' }, (p) => {
+          setRows((cur) => {
+            if (p.eventType === 'DELETE') return cur.filter((r) => r.id !== p.old?.id)
+            const r = p.new
+            if (!r || !r.id) return cur
+            const i = cur.findIndex((x) => x.id === r.id)
+            if (i < 0) return [...cur, r]
+            const n = [...cur]; n[i] = r; return n
+          })
+        }).subscribe()
+    } catch { ch = null }
+    const onVis = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { alive = false; document.removeEventListener('visibilitychange', onVis); try { if (ch) supabase.removeChannel(ch) } catch { /* ignore */ } }
+  }, [])
+  const items = useMemo(() => {
+    const proj = {}
+    rows.forEach((r) => { if (r.kind === 'project') proj[r.id] = normProject(r) })
+    return rows.filter((r) => r.kind === 'task').map((r) => ({ ...normTask(r), familyId: r.family_id, project: proj[r.data?.projectId] || null }))
+  }, [rows])
+  return { items, ready, missingTable }
 }

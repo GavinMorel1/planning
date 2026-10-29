@@ -8,12 +8,13 @@ import { Card, Eyebrow, Title, Btn, Input, TextArea, Select, Field, Empty, Note,
 import { download, uid, nowIso } from '../lib/util'
 import {
   useWork, STATUSES, STATUS_BY_ID, PRIORITIES, PRIORITY_BY_ID, PROJECT_COLORS, PROJECT_STATUSES, TOOLS_PROJECT_NAME,
-  buildTemplate, buildWorkflow, planToolImport, todayIso, addDays, isOverdue, isClosed, shortDate, relTime, nameFromEmail, initialsOf, ENGAGEMENT_TEMPLATE,
+  buildTemplate, buildWorkflow, planToolImport, todayIso, addDays, isOverdue, isClosed, normSub, shortDate, relTime, nameFromEmail, initialsOf, ENGAGEMENT_TEMPLATE,
 } from '../lib/work'
 import { WORKFLOWS, WORKFLOW_BY_ID, workflowTaskCount } from '../data/workflows'
 
 const COLS = '34px minmax(220px,1fr) 130px 150px 112px 88px 56px 140px'
 const VIEW_KEY = 'planning_work_view'
+const TAB_KEY = 'planning_work_tab'
 const rosterPhoto = (p) => {
   const src = p?.photo || DEFAULT_ROSTER.find((d) => d.name === p?.name)?.photo
   return src ? (src.startsWith('data:') ? src : `${import.meta.env.BASE_URL || '/'}${src}`) : ''
@@ -35,6 +36,8 @@ function WorkInner({ C, isDesktop, f }) {
   const ownerOptions = useMemo(() => [{ value: '', label: 'Unassigned' }, ...(me ? [{ value: me, label: `Me (${me})` }] : []), ...roster.map((p) => ({ value: p.name, label: p.name }))], [roster, me])
   const [view, setViewState] = useState(() => { try { return localStorage.getItem(VIEW_KEY) === 'board' ? 'board' : 'table' } catch { return 'table' } })
   const setView = (v) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* ignore */ } }
+  const [tab, setTabState] = useState(() => { try { return localStorage.getItem(TAB_KEY) === 'done' ? 'done' : 'open' } catch { return 'open' } })
+  const setTab = (v) => { setTabState(v); try { localStorage.setItem(TAB_KEY, v) } catch { /* ignore */ } }
   const [flt, setFlt] = useState({ owner: '', status: '', mine: false, overdue: false, q: '' })
   const [openId, setOpenId] = useState(null)
   const [editId, setEditId] = useState(null)
@@ -68,6 +71,7 @@ function WorkInner({ C, isDesktop, f }) {
   const visible = useMemo(() => {
     const q = flt.q.trim().toLowerCase()
     return tasks.filter((t) => {
+      if (isClosed(t.status)) return false
       if (flt.owner === '__none' ? t.owner : flt.owner && t.owner !== flt.owner) return false
       if (flt.status && t.status !== flt.status) return false
       if (flt.mine && String(t.owner).toLowerCase() !== me) return false
@@ -76,6 +80,19 @@ function WorkInner({ C, isDesktop, f }) {
       return true
     })
   }, [tasks, flt, me, today, projName])
+  const closedTasks = useMemo(() => tasks.filter((t) => isClosed(t.status)), [tasks])
+  const doneProjectIds = useMemo(() => new Set(projects.filter((p) => { const k = tasks.filter((t) => t.projectId === p.id); return k.length > 0 && k.every((t) => isClosed(t.status)) }).map((p) => p.id)), [projects, tasks])
+  // Tell the user when something they just finished moved to "Work completed".
+  const closedRef = useRef(null)
+  useEffect(() => {
+    if (!W.ready) return
+    const now = new Set(closedTasks.map((t) => t.id))
+    const prev = closedRef.current
+    closedRef.current = now
+    if (!prev) return
+    const fresh = [...now].filter((id) => !prev.has(id))
+    if (fresh.length) say(`${fresh.length} task${fresh.length > 1 ? 's' : ''} moved to Work completed.`, 'info')
+  }, [closedTasks, W.ready])
   const toImport = useMemo(() => planToolImport(f, tasks, today), [f, tasks, today])
   const openTask = tasks.find((t) => t.id === openId) || null
   const selIds = useMemo(() => tasks.filter((t) => sel.has(t.id)).map((t) => t.id), [tasks, sel])
@@ -158,29 +175,130 @@ function WorkInner({ C, isDesktop, f }) {
         <FirstRun C={C} onTemplate={() => setModal('template')} onProject={newProject} onImport={importTools} importCount={toImport.length} />
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 14 }}>
-            <StatBox C={C} label="Open tasks" value={stats.open} />
-            <StatBox C={C} label="Overdue" value={stats.overdue} color={stats.overdue ? C.dn : undefined} />
-            <StatBox C={C} label="Due next 7 days" value={stats.soon} color={stats.soon ? C.warn : undefined} />
-            <StatBox C={C} label="Done this month" value={stats.doneMonth} color={stats.doneMonth ? C.up : undefined} />
-            <StatBox C={C} label="Complete" value={`${stats.pct}%`} bar={stats.pct} />
+          <RollUp C={C} family={f.name} projects={projects} tasks={tasks} doneProjects={doneProjectIds.size} />
+          <div style={{ margin: '0 0 14px' }}>
+            <Seg C={C} value={tab} onChange={(v) => { setTab(v); setSelectMode(false) }} options={[{ id: 'open', label: `Open work · ${tasks.length - closedTasks.length}` }, { id: 'done', label: `Work completed · ${closedTasks.length}` }]} />
           </div>
 
-          <Toolbar C={C} isDesktop={isDesktop} view={view} setView={setView} flt={flt} setFlt={setFlt} ownerFilterOptions={ownerFilterOptions}
-            onTemplate={() => setModal('template')} onImport={importTools} importCount={toImport.length} selectMode={selectMode} setSelectMode={setSelectMode} />
-          {selectMode && <BulkBar C={C} ids={selIds} visibleIds={visible.map((t) => t.id)} ownerOptions={ownerOptions} W={W} onSelect={(ids) => setSel(new Set(ids))} onDone={() => setSelectMode(false)} say={say} />}
-
-          {view === 'table' ? (
-            <TableView {...shared} W={W} projects={projects} visible={visible} filtersOn={filtersOn} editId={editId} setEditId={setEditId} editProj={editProj} setEditProj={setEditProj} selectMode={selectMode} sel={sel} toggleSel={toggleSel}
-              onOpen={setOpenId} onToggle={toggleDone} onDuplicate={duplicate} onAdd={addToGroup} today={today} />
+          {tab === 'done' ? (
+            <CompletedView {...shared} W={W} projects={projects} closed={closedTasks} doneProjectIds={doneProjectIds} onOpen={setOpenId} />
           ) : (
-            <BoardView {...shared} W={W} projects={projects} visible={visible} onOpen={setOpenId} today={today} />
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 14 }}>
+                <StatBox C={C} label="Open tasks" value={stats.open} />
+                <StatBox C={C} label="Overdue" value={stats.overdue} color={stats.overdue ? C.dn : undefined} />
+                <StatBox C={C} label="Due next 7 days" value={stats.soon} color={stats.soon ? C.warn : undefined} />
+                <StatBox C={C} label="Done this month" value={stats.doneMonth} color={stats.doneMonth ? C.up : undefined} />
+                <StatBox C={C} label="Complete" value={`${stats.pct}%`} bar={stats.pct} />
+              </div>
+
+              <Toolbar C={C} isDesktop={isDesktop} view={view} setView={setView} flt={flt} setFlt={setFlt} ownerFilterOptions={ownerFilterOptions}
+                onTemplate={() => setModal('template')} onImport={importTools} importCount={toImport.length} selectMode={selectMode} setSelectMode={setSelectMode} />
+              {selectMode && <BulkBar C={C} ids={selIds} visibleIds={visible.map((t) => t.id)} ownerOptions={ownerOptions} W={W} onSelect={(ids) => setSel(new Set(ids))} onDone={() => setSelectMode(false)} say={say} />}
+
+              {!visible.length && !filtersOn && closedTasks.length > 0 && !projects.some((p) => !doneProjectIds.has(p.id)) ? (
+                <Card C={C}><Empty C={C} icon="✓" title="All work is completed" action={<Btn C={C} primary onClick={() => setTab('done')}>View Work completed</Btn>}>Every task for {f.name} is finished. Add a project or task to start new work.</Empty></Card>
+              ) : view === 'table' ? (
+                <TableView {...shared} W={W} projects={projects} visible={visible} doneProjectIds={doneProjectIds} filtersOn={filtersOn} editId={editId} setEditId={setEditId} editProj={editProj} setEditProj={setEditProj} selectMode={selectMode} sel={sel} toggleSel={toggleSel}
+                  onOpen={setOpenId} onToggle={toggleDone} onDuplicate={duplicate} onAdd={addToGroup} today={today} />
+              ) : (
+                <BoardView {...shared} W={W} projects={projects} visible={visible} doneCount={closedTasks.length} onOpen={setOpenId} today={today} />
+              )}
+            </>
           )}
         </>
       )}
 
       {openTask && <TaskPanel {...shared} f={f} W={W} task={openTask} projects={projects} onClose={() => setOpenId(null)} putFile={putFile} getFile={getFile} removeFile={removeFile} email={me} />}
       {modal === 'template' && <TemplateModal C={C} isDark={isDark} projects={projects} onClose={() => setModal(null)} onCreate={createTemplate} />}
+    </div>
+  )
+}
+
+/* ───────────────────────── roll-up and completed ───────────────────────── */
+
+function RollUp({ C, family, projects, tasks, doneProjects }) {
+  const subs = tasks.reduce((n, t) => n + t.subtasks.length, 0)
+  const subsDone = tasks.reduce((n, t) => n + t.subtasks.filter((x) => x.done).length, 0)
+  const closed = tasks.filter((t) => isClosed(t.status)).length
+  const pct = tasks.length ? Math.round((closed / tasks.length) * 100) : 0
+  return (
+    <Card C={C} style={{ padding: '14px 16px', marginBottom: 14, borderLeft: `4px solid ${C.accent}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: C.t4, textTransform: 'uppercase', letterSpacing: 1 }}>Family</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.t1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{family}</div>
+        </div>
+        <RollNum C={C} label="Projects" value={projects.length} sub={doneProjects ? `${doneProjects} complete` : ''} />
+        <RollNum C={C} label="Tasks" value={tasks.length} sub={`${closed} complete`} />
+        <RollNum C={C} label="Subtasks" value={subs} sub={subs ? `${subsDone} complete` : ''} />
+        <div style={{ flex: '1 1 160px', minWidth: 140 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.t3, marginBottom: 4 }}><span>Overall</span><b style={{ color: C.t1 }}>{pct}%</b></div>
+          <div style={{ height: 6, borderRadius: 3, background: C.border, overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', background: C.up }} /></div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+const RollNum = ({ C, label, value, sub }) => (
+  <div style={{ minWidth: 70 }}>
+    <div style={{ fontSize: 10, fontWeight: 700, color: C.t4, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</div>
+    <div style={{ fontSize: 20, fontWeight: 800, color: C.t1, fontVariantNumeric: 'tabular-nums', lineHeight: 1.15 }}>{value}</div>
+    <div style={{ fontSize: 10.5, color: C.t4, minHeight: 13 }}>{sub}</div>
+  </div>
+)
+
+function CompletedView({ C, isDesktop, W, projects, closed, doneProjectIds, onOpen, roster, me }) {
+  const [q, setQ] = useState('')
+  const text = q.trim().toLowerCase()
+  const list = closed.filter((t) => !text || `${t.title} ${t.notes} ${t.owner}`.toLowerCase().includes(text))
+  const groups = projects.map((p) => ({ p, tasks: list.filter((t) => t.projectId === p.id).sort((a, b) => String(b.doneAt || b.updatedAt).localeCompare(String(a.doneAt || a.updatedAt))) })).filter((g) => g.tasks.length)
+  const known = new Set(projects.map((p) => p.id))
+  const orphans = list.filter((t) => !known.has(t.projectId))
+  const lastDone = (arr) => arr.map((t) => String(t.doneAt || t.updatedAt || '').slice(0, 10)).sort().pop()
+  if (!closed.length) {
+    return <Card C={C}><Empty C={C} icon="✓" title="Nothing completed yet">Tasks you mark Done (or Not applicable) move here automatically, grouped by project, with who finished them and when. Reopen any task to send it back to Open work.</Empty></Card>
+  }
+  const row = (t) => {
+    const subDone = t.subtasks.filter((x) => x.done).length
+    return (
+      <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '9px 16px', borderTop: `1px solid ${C.border}` }}>
+        <span style={{ color: t.status === 'na' ? STATUS_BY_ID.na.color : C.up, fontWeight: 800, width: 16 }} title={STATUS_BY_ID[t.status]?.label}>{t.status === 'na' ? '–' : '✓'}</span>
+        <span role="button" tabIndex={0} onClick={() => onOpen(t.id)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(t.id) }} style={{ flex: '1 1 220px', minWidth: 0, fontSize: 13.5, fontWeight: 600, color: C.t2, cursor: 'pointer', overflowWrap: 'anywhere' }}>{t.title || 'Untitled task'}</span>
+        {t.status === 'na' && <span style={{ fontSize: 11, color: C.t4 }}>Not applicable</span>}
+        {t.subtasks.length > 0 && <span style={{ fontSize: 11, color: C.t4, whiteSpace: 'nowrap' }}>☑ {subDone}/{t.subtasks.length}</span>}
+        {t.files.length > 0 && <span style={{ fontSize: 11.5, color: C.t3, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Clip color={C.accent} size={12} />{t.files.length}</span>}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 110 }}><Avatar C={C} owner={t.owner} roster={roster} size={22} /><span style={{ fontSize: 12, color: t.owner ? C.t2 : C.t4 }}>{ownerLabel(t.owner, me)}</span></span>
+        <span style={{ fontSize: 11.5, color: C.t4, minWidth: 130 }} title={t.updatedAt ? new Date(t.updatedAt).toLocaleString() : ''}>{t.doneAt || t.updatedAt ? `${shortDate(t.doneAt || t.updatedAt)}${t.updatedBy ? ` · ${nameFromEmail(t.updatedBy)}` : ''}` : ''}</span>
+        <Btn C={C} small onClick={() => W.updateTask(t.id, { status: 'todo' })} title="Move back to Open work">Reopen</Btn>
+        <Confirm C={C} onConfirm={() => W.removeTask(t.id)}>Delete</Confirm>
+      </div>
+    )
+  }
+  return (
+    <div>
+      <Card C={C} style={{ padding: '12px 14px', marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Input C={C} value={q} onChange={setQ} placeholder="Search completed work…" aria-label="Search completed work" style={{ maxWidth: 280, padding: '8px 12px' }} />
+          <span style={{ fontSize: 12, color: C.t3 }}>{list.length} of {closed.length} completed task{closed.length === 1 ? '' : 's'}</span>
+        </div>
+      </Card>
+      {groups.map(({ p, tasks }) => {
+        const full = doneProjectIds.has(p.id)
+        return (
+          <div key={p.id} style={{ marginBottom: 14, border: `1px solid ${C.border}`, borderRadius: 14, background: C.card, overflow: 'hidden', borderLeft: `4px solid ${p.color}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 16px', background: C.surface }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: C.t1 }}>{p.name || 'Untitled project'}</span>
+              {full ? <span style={{ fontSize: 11, fontWeight: 800, color: C.up, background: C.up + '22', border: `1px solid ${C.up}66`, padding: '2px 9px', borderRadius: 20 }}>Project complete</span>
+                : <span style={{ fontSize: 11.5, color: C.t4 }}>still open, {W.tasks.filter((t) => t.projectId === p.id && !isClosed(t.status)).length} task(s) left</span>}
+              <span style={{ marginLeft: 'auto', fontSize: 11.5, color: C.t3 }}>{tasks.length} completed{full && lastDone(tasks) ? ` · finished ${shortDate(lastDone(tasks))}` : ''}</span>
+            </div>
+            {tasks.map(row)}
+          </div>
+        )
+      })}
+      {orphans.length > 0 && <Card C={C} style={{ padding: 0, overflow: 'hidden' }}><div style={{ padding: '10px 16px', fontSize: 13, fontWeight: 800, color: C.t1, background: C.surface }}>No project</div>{orphans.map(row)}</Card>}
+      {!groups.length && !orphans.length && <Empty C={C} icon="⌕" title="Nothing matches that search">Clear the search to see every completed task.</Empty>}
     </div>
   )
 }
@@ -311,8 +429,11 @@ function FirstRun({ C, onTemplate, onProject, onImport, importCount }) {
 
 /* ───────────────────────── table view ───────────────────────── */
 
-function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects, visible, filtersOn, editId, setEditId, editProj, setEditProj, selectMode, sel, toggleSel, onOpen, onToggle, onDuplicate, onAdd, today }) {
-  const groups = projects.map((p) => ({ p, tasks: visible.filter((t) => t.projectId === p.id) }))
+function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects, visible, filtersOn, editId, setEditId, editProj, setEditProj, selectMode, sel, toggleSel, doneProjectIds, onOpen, onToggle, onDuplicate, onAdd, today }) {
+  const [subsOff, setSubsOff] = useState({}) // task id -> true when its subtasks are collapsed
+  const [addingSub, setAddingSub] = useState(null)
+  const openProjects = projects.filter((p) => !doneProjectIds.has(p.id))
+  const groups = openProjects.map((p) => ({ p, tasks: visible.filter((t) => t.projectId === p.id) }))
   const orphans = visible.filter((t) => !projects.some((p) => p.id === t.projectId))
   const shown = groups.filter((g) => !filtersOn || g.tasks.length)
   const allTasks = (pid) => W.tasks.filter((t) => t.projectId === pid)
@@ -321,16 +442,22 @@ function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects
       {shown.map(({ p, tasks }) => (
         <div key={p.id} style={{ marginBottom: 14, border: `1px solid ${C.border}`, borderRadius: 14, background: C.card, overflow: 'hidden', borderLeft: `4px solid ${p.color}` }}>
           <ProjectHeader C={C} isDesktop={isDesktop} isDark={isDark} p={p} all={allTasks(p.id)} W={W} ownerOptions={ownerOptions} roster={roster} me={me} editing={editProj === p.id} setEditing={setEditProj}
-            pos={{ first: projects[0]?.id === p.id, last: projects[projects.length - 1]?.id === p.id }}
+            pos={{ first: openProjects[0]?.id === p.id, last: openProjects[openProjects.length - 1]?.id === p.id }} siblingIds={openProjects.map((x) => x.id)}
             selectMode={selectMode} allSelected={tasks.length > 0 && tasks.every((t) => sel.has(t.id))} onSelectAll={(on) => toggleSel(tasks.map((t) => t.id), on)} />
           {!p.collapsed && (
             <>
               {tasks.map((t) => {
-                const sibs = allTasks(p.id)
+                const showSubs = isDesktop && t.subtasks.length > 0 && !subsOff[t.id]
+                const adding = isDesktop && addingSub === t.id
                 return (
-                  <TaskRow key={t.id} C={C} isDesktop={isDesktop} isDark={isDark} t={t} W={W} ownerOptions={ownerOptions} roster={roster} me={me} today={today}
-                    editing={editId === t.id} setEditId={setEditId} onOpen={onOpen} onToggle={onToggle} onDuplicate={onDuplicate}
-                    pos={{ first: sibs[0]?.id === t.id, last: sibs[sibs.length - 1]?.id === t.id }} selectMode={selectMode} selected={sel.has(t.id)} onSelect={() => toggleSel([t.id])} />
+                  <div key={t.id}>
+                    <TaskRow C={C} isDesktop={isDesktop} isDark={isDark} t={t} W={W} ownerOptions={ownerOptions} roster={roster} me={me} today={today}
+                      editing={editId === t.id} setEditId={setEditId} onOpen={onOpen} onToggle={onToggle} onDuplicate={onDuplicate}
+                      pos={{ first: tasks[0]?.id === t.id, last: tasks[tasks.length - 1]?.id === t.id }} siblingIds={tasks.map((x) => x.id)} selectMode={selectMode} selected={sel.has(t.id)} onSelect={() => toggleSel([t.id])}
+                      subsOpen={showSubs} onToggleSubs={() => setSubsOff((m) => ({ ...m, [t.id]: !m[t.id] }))} onAddSub={() => { setSubsOff((m) => ({ ...m, [t.id]: false })); setAddingSub(t.id) }} />
+                    {showSubs && t.subtasks.map((raw) => <SubRow key={raw.id} C={C} isDark={isDark} t={t} sub={normSub(raw)} W={W} ownerOptions={ownerOptions} roster={roster} me={me} today={today} />)}
+                    {(showSubs || adding) && <AddSubRow C={C} focus={adding} onBlurEmpty={() => setAddingSub((x) => (x === t.id ? null : x))} onAdd={(text) => W.updateTask(t.id, (cur) => ({ subtasks: [...cur.subtasks, { id: uid(), text, done: false, owner: '', due: '' }] }))} />}
+                  </div>
                 )
               })}
               {!tasks.length && filtersOn === false && <div style={{ padding: '10px 16px', fontSize: 12, color: C.t4 }}>No tasks yet.</div>}
@@ -356,9 +483,11 @@ function TableView({ C, isDesktop, isDark, ownerOptions, roster, me, W, projects
   )
 }
 
-function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, me, editing, setEditing, pos, selectMode, allSelected, onSelectAll }) {
+function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, me, editing, setEditing, pos, siblingIds, selectMode, allSelected, onSelectAll }) {
   const done = all.filter((t) => isClosed(t.status)).length
   const pct = all.length ? Math.round((done / all.length) * 100) : 0
+  const subTotal = all.reduce((n, t) => n + t.subtasks.length, 0)
+  const subDone = all.reduce((n, t) => n + t.subtasks.filter((x) => x.done).length, 0)
   const ref = useRef(null)
   useEffect(() => { if (editing && ref.current) { ref.current.focus(); ref.current.select() } }, [editing])
   const nextColor = () => W.updateProject(p.id, { color: PROJECT_COLORS[(PROJECT_COLORS.indexOf(p.color) + 1) % PROJECT_COLORS.length] })
@@ -370,7 +499,7 @@ function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, 
       <input ref={ref} aria-label="Project name" className="wk-ghost" value={p.name} placeholder="Project name" onFocus={() => setEditing(p.id)} onBlur={() => setEditing(null)} onChange={(e) => W.updateProject(p.id, { name: e.target.value })}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur() }}
         style={{ flex: '1 1 160px', minWidth: 120, padding: '5px 8px', borderRadius: 8, fontSize: 15, fontWeight: 800, outline: 'none' }} />
-      <span style={{ fontSize: 11.5, color: C.t3, whiteSpace: 'nowrap' }}>{all.length} task{all.length === 1 ? '' : 's'}</span>
+      <span style={{ fontSize: 11.5, color: C.t3, whiteSpace: 'nowrap' }}>{done}/{all.length} task{all.length === 1 ? '' : 's'}{subTotal > 0 ? ` · ${subDone}/${subTotal} subtasks` : ''}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 110 }} title={`${done} of ${all.length} done`}>
         <div style={{ flex: 1, height: 6, borderRadius: 3, background: C.border, overflow: 'hidden', minWidth: 60 }}><div style={{ width: `${pct}%`, height: '100%', background: C.up }} /></div>
         <span style={{ fontSize: 11, color: C.t3, fontVariantNumeric: 'tabular-nums', width: 32 }}>{pct}%</span>
@@ -380,7 +509,7 @@ function ProjectHeader({ C, isDesktop, isDark, p, all, W, ownerOptions, roster, 
       <select aria-label="Project status" value={p.status} onChange={(e) => W.updateProject(p.id, { status: e.target.value })} style={{ padding: '4px 6px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.card, color: C.t2, fontSize: 11.5, fontFamily: 'inherit' }}>
         {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
-      <MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(p.id, d)} what="project" />
+      <MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(p.id, d, siblingIds)} what="project" />
       <Confirm C={C} onConfirm={() => W.removeProject(p.id)}>Delete</Confirm>
     </div>
   )
@@ -412,7 +541,7 @@ function BulkBar({ C, ids, visibleIds, ownerOptions, W, onSelect, onDone, say })
   )
 }
 
-function TitleCell({ C, t, editing, setEditId, onChange, onOpen, compact }) {
+function TitleCell({ C, t, editing, setEditId, onChange, onOpen, compact, subsOpen, onToggleSubs }) {
   const ref = useRef(null)
   useEffect(() => { if (editing && ref.current) ref.current.focus() }, [editing])
   const subDone = t.subtasks.filter((s) => s.done).length
@@ -429,6 +558,7 @@ function TitleCell({ C, t, editing, setEditId, onChange, onOpen, compact }) {
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      {onToggleSubs && t.subtasks.length > 0 && <button aria-label={subsOpen ? 'Hide subtasks' : 'Show subtasks'} title={subsOpen ? 'Hide subtasks' : 'Show subtasks'} onClick={onToggleSubs} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}><Chevron color={C.t3} open={subsOpen} /></button>}
       <span role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); if (e.key === 'F2') setEditId(t.id) }} title="Click to open the task. Use the pencil (or F2) to rename."
         style={{ fontSize: 13.5, fontWeight: 600, color: t.status === 'done' ? C.t4 : t.title ? C.t1 : C.t4, textDecoration: t.status === 'done' ? 'line-through' : 'none', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compact ? 'normal' : 'nowrap', overflowWrap: 'anywhere', minWidth: 0 }}>{t.title || 'Untitled task'}</span>
       {!compact && <button className="wk-pencil" aria-label="Rename task" title="Rename" onClick={() => setEditId(t.id)} style={{ background: 'transparent', border: 'none', color: C.t3, cursor: 'pointer', fontSize: 12, padding: 2 }}>✎</button>}
@@ -437,7 +567,7 @@ function TitleCell({ C, t, editing, setEditId, onChange, onOpen, compact }) {
   )
 }
 
-function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, editing, setEditId, onOpen, onToggle, onDuplicate, pos, selectMode, selected, onSelect }) {
+function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, editing, setEditId, onOpen, onToggle, onDuplicate, pos, siblingIds, selectMode, selected, onSelect, subsOpen, onToggleSubs, onAddSub }) {
   const overdue = isOverdue(t, today)
   const check = selectMode
     ? <input type="checkbox" aria-label="Select task" checked={selected} onChange={onSelect} style={{ accentColor: C.accent, width: 16, height: 16, cursor: 'pointer' }} />
@@ -462,7 +592,7 @@ function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, 
           <OwnerSelect C={C} value={t.owner} onChange={(v) => upd({ owner: v })} ownerOptions={ownerOptions} roster={roster} me={me} />
           <div style={{ width: 120 }}><DueInput C={C} value={t.due} onChange={(v) => upd({ due: v })} overdue={overdue} isDark={isDark} /></div>
           {fileBtn}
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(t.id, d)} what="task" /><PriorityChip C={C} value={t.priority} onChange={(v) => upd({ priority: v })} /></span>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(t.id, d, siblingIds)} what="task" /><PriorityChip C={C} value={t.priority} onChange={(v) => upd({ priority: v })} /></span>
         </div>
       </div>
     )
@@ -470,7 +600,7 @@ function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, 
   return (
     <div className="wk-row" style={{ position: 'relative', display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '7px 16px 7px 16px', borderTop: `1px solid ${C.border}`, background: selected ? C.accentSoft : C.card }}>
       <span>{check}</span>
-      <TitleCell C={C} t={t} editing={editing} setEditId={setEditId} onChange={(v) => upd({ title: v })} onOpen={() => onOpen(t.id)} />
+      <TitleCell C={C} t={t} editing={editing} setEditId={setEditId} onChange={(v) => upd({ title: v })} onOpen={() => onOpen(t.id)} subsOpen={subsOpen} onToggleSubs={onToggleSubs} />
       <OwnerSelect C={C} value={t.owner} onChange={(v) => upd({ owner: v })} ownerOptions={ownerOptions} roster={roster} me={me} />
       <StatusPill C={C} value={t.status} onChange={(v) => upd({ status: v })} block />
       <DueInput C={C} value={t.due} onChange={(v) => upd({ due: v })} overdue={overdue} isDark={isDark} />
@@ -478,11 +608,43 @@ function TaskRow({ C, isDesktop, isDark, t, W, ownerOptions, roster, me, today, 
       <span>{fileBtn}</span>
       <span style={{ fontSize: 11, color: C.t4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.updatedAt ? `Updated by ${t.updatedBy || 'unknown'} ${new Date(t.updatedAt).toLocaleString()}` : ''}>{t.updatedAt ? `${nameFromEmail(t.updatedBy) || '—'} · ${relTime(t.updatedAt)}` : ''}</span>
       <div className="wk-acts" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, alignItems: 'center', background: C.cardHover, padding: '3px 5px', borderRadius: 10, border: `1px solid ${C.border}` }}>
-        <MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(t.id, d)} what="task" />
+        <MoveBtns C={C} pos={pos} onMove={(d) => W.moveItem(t.id, d, siblingIds)} what="task" />
+        <Btn C={C} small ghost title="Add a subtask" onClick={onAddSub}>+ Sub</Btn>
         <Btn C={C} small ghost title="Open" onClick={() => onOpen(t.id)}>Open</Btn>
         <Btn C={C} small ghost title="Duplicate" onClick={() => onDuplicate(t)}>Duplicate</Btn>
         <Confirm C={C} onConfirm={() => W.removeTask(t.id)}>Delete</Confirm>
       </div>
+    </div>
+  )
+}
+
+function SubRow({ C, isDark, t, sub, W, ownerOptions, roster, me, today }) {
+  const upd = (p) => W.updateTask(t.id, (cur) => ({ subtasks: cur.subtasks.map((x) => (x.id === sub.id ? { ...x, ...p } : x)) }))
+  const overdue = Boolean(sub.due) && !sub.done && sub.due < today
+  return (
+    <div className="wk-row" style={{ display: 'grid', gridTemplateColumns: COLS, gap: 8, alignItems: 'center', padding: '3px 16px', borderTop: `1px dashed ${C.border}`, background: C.surface }}>
+      <span style={{ textAlign: 'right' }}><input type="checkbox" aria-label="Subtask done" checked={sub.done} onChange={() => upd({ done: !sub.done })} style={{ accentColor: C.up, width: 14, height: 14, cursor: 'pointer' }} /></span>
+      <input aria-label="Subtask text" className="wk-ghost" value={sub.text} placeholder="Subtask" onChange={(e) => upd({ text: e.target.value })}
+        style={{ width: '100%', minWidth: 0, padding: '4px 8px 4px 22px', borderRadius: 8, fontSize: 12.5, outline: 'none', color: sub.done ? C.t4 : C.t2, textDecoration: sub.done ? 'line-through' : 'none', boxSizing: 'border-box' }} />
+      <OwnerSelect C={C} value={sub.owner} onChange={(v) => upd({ owner: v })} ownerOptions={ownerOptions} roster={roster} me={me} label="Subtask owner" />
+      <span style={{ fontSize: 11, color: sub.done ? C.up : C.t4 }}>{sub.done ? 'Done' : ''}</span>
+      <DueInput C={C} value={sub.due} onChange={(v) => upd({ due: v })} overdue={overdue} isDark={isDark} label="Subtask due date" />
+      <span /><span />
+      <button aria-label="Remove subtask" title="Remove subtask" onClick={() => W.updateTask(t.id, (cur) => ({ subtasks: cur.subtasks.filter((x) => x.id !== sub.id) }))} style={{ background: 'transparent', border: 'none', color: C.t4, cursor: 'pointer', fontSize: 16, padding: '0 4px', justifySelf: 'start' }}>×</button>
+    </div>
+  )
+}
+
+function AddSubRow({ C, onAdd, focus, onBlurEmpty }) {
+  const [v, setV] = useState('')
+  const ref = useRef(null)
+  useEffect(() => { if (focus && ref.current) ref.current.focus() }, [focus])
+  const commit = () => { const x = v.trim(); if (x) { onAdd(x); setV('') } }
+  return (
+    <div style={{ padding: '3px 16px 5px 90px', borderTop: `1px dashed ${C.border}`, background: C.surface }}>
+      <input ref={ref} aria-label="Add subtask" value={v} onChange={(e) => setV(e.target.value)} placeholder="+ Add subtask (press Enter)" onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setV(''); e.currentTarget.blur() } }} onBlur={() => { commit(); if (!v.trim()) onBlurEmpty && onBlurEmpty() }}
+        style={{ width: '100%', maxWidth: 380, padding: '4px 8px', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: C.t1, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
+        onFocus={(e) => { e.currentTarget.style.background = C.card; e.currentTarget.style.borderColor = C.border }} />
     </div>
   )
 }
@@ -501,7 +663,7 @@ function AddRow({ C, onAdd }) {
 
 /* ───────────────────────── board view ───────────────────────── */
 
-function BoardView({ C, isDesktop, ownerOptions, roster, me, W, projects, visible, onOpen, today }) {
+function BoardView({ C, isDesktop, ownerOptions, roster, me, W, projects, visible, doneCount, onOpen, today }) {
   const [drag, setDrag] = useState(null)
   const [over, setOver] = useState(null)
   const proj = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p])), [projects])
@@ -545,7 +707,7 @@ function BoardView({ C, isDesktop, ownerOptions, roster, me, W, projects, visibl
                   </div>
                 )
               })}
-              {!col.length && <div style={{ fontSize: 12, color: C.t4, textAlign: 'center', padding: '14px 4px' }}>Drop tasks here</div>}
+              {!col.length && <div style={{ fontSize: 12, color: C.t4, textAlign: 'center', padding: '14px 4px' }}>{isClosed(s.id) ? `Drop here to finish. ${doneCount} already in Work completed.` : 'Drop tasks here'}</div>}
             </div>
           </div>
         )

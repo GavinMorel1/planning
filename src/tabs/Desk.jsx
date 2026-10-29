@@ -6,7 +6,7 @@ import { daysUntil, fmtDate, fmtUsd } from '../lib/util'
 import { netWorthOf } from './Families'
 import { TIERS } from '../data/tools'
 import { useAuth } from '../lib/auth'
-import { useWork, isOverdue, shortDate } from '../lib/work'
+import { useWork, isOverdue, isClosed, shortDate } from '../lib/work'
 
 export default function Desk({ C, isDesktop, setTab }) {
   const { families, setActive, settings } = useStore()
@@ -64,7 +64,7 @@ function MyTasks({ C, setTab }) {
   const W = useWork(family?.id || null)
   const me = String(email || '').toLowerCase()
   if (!family || !me || W.missingTable || !W.ready) return null
-  const mine = W.tasks.filter((t) => t.status !== 'done' && String(t.owner).toLowerCase() === me).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))
+  const mine = W.tasks.filter((t) => !isClosed(t.status) && String(t.owner).toLowerCase() === me).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))
   if (!mine.length) return null
   return (
     <Card C={C} accent style={{ marginBottom: 18 }}>
