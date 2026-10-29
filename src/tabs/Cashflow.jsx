@@ -4,8 +4,8 @@ import { Card, Eyebrow, Title, Grid, Field, Input, Note, Btn, Row, Stat } from '
 import { fmtUsd, num } from '../lib/util'
 import { netWorthOf } from './Families'
 
-// eMoney is the cash-flow engine. This tab keeps the numbers the decks need and reads what
-// Claude extracted from uploaded eMoney reports (Documents › eMoney Reports).
+// This tab keeps the numbers the decks need and reads what Claude extracted from uploaded eMoney reports
+// (Documents › eMoney Reports).
 export default function Cashflow({ C, isDesktop, setTab }) {
   const [f, patch] = useFamily()
   const a = f.assessment || {}
@@ -17,12 +17,12 @@ export default function Cashflow({ C, isDesktop, setTab }) {
   const spend = num(a.lifestyleSpend)
   return (
     <div>
-      <Title C={C} isDesktop={isDesktop} sub="eMoney remains the cash-flow engine. Keep the figures the decks use here, and upload eMoney exports in Documents for Claude to read." right={<Btn C={C} onClick={() => setTab('documents')}>Upload eMoney reports</Btn>}>Cashflow · {f.name}</Title>
+      <Title C={C} isDesktop={isDesktop} sub="Cash needs and the figures the decks use. Upload eMoney exports in Documents for Claude to read." right={<Btn C={C} onClick={() => setTab('documents')}>Upload eMoney reports</Btn>}>Cashflow · {f.name}</Title>
       <Grid cols={isDesktop ? 4 : 2} gap={10} style={{ marginBottom: 14 }}>
         <Stat C={C} label="Household income" value={fmtUsd(income, { compact: true })} />
         <Stat C={C} label="Lifestyle spend" value={fmtUsd(spend, { compact: true })} />
         <Stat C={C} label="Net worth" value={fmtUsd(netWorthOf(f), { compact: true })} />
-        <Stat C={C} label="Savings rate" value={income ? `${Math.round((1 - spend / income) * 100)}%` : '—'} color={income && spend / income > 0.9 ? C.dn : C.up} />
+        <Stat C={C} label="Savings rate" value={income > 0 && spend > 0 ? `${Math.round((1 - spend / income) * 100)}%` : '--'} color={income > 0 && spend > 0 ? (spend / income > 0.9 ? C.dn : C.up) : C.t3} sub={income > 0 && spend > 0 ? '' : 'Needs income and spending'} />
       </Grid>
       <Grid cols={isDesktop ? 2 : 1} gap={14}>
         <Card C={C}>

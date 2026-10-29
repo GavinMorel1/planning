@@ -139,10 +139,12 @@ function WorkInner({ C, isDesktop, f }) {
   const createTemplate = (id, start) => {
     const w = WORKFLOW_BY_ID[id]
     const { projects: ps, tasks: ts } = w ? buildWorkflow(id, start) : buildTemplate(start)
-    W.addMany(ps, ts)
+    const r = W.addMany(ps, ts)
     setWf(w ? w.id : 'standard')
     setModal(null)
-    say(`Created ${ps.length} projects and ${ts.length} tasks from ${w ? `the ${w.name} workflow` : 'the standard engagement'}, starting ${shortDate(start)}.`)
+    const what = w ? `the ${w.name} workflow` : 'the standard engagement'
+    if (!r.added.projects && !r.added.tasks) say(`${what[0].toUpperCase()}${what.slice(1)} is already set up for this family, so nothing was added.`, 'info')
+    else say(`Added ${r.added.projects} project${r.added.projects === 1 ? '' : 's'} and ${r.added.tasks} task${r.added.tasks === 1 ? '' : 's'} from ${what}, starting ${shortDate(start)}.${r.skipped.projects || r.skipped.tasks ? ` ${r.skipped.projects + r.skipped.tasks} already existed and were left alone.` : ''}`)
   }
   const importTools = () => {
     if (!toImport.length) { say('No new accepted tools to import. Accept tools in Priorities first, or all of them are already here.', 'info'); return }
@@ -828,7 +830,7 @@ function TemplateModal({ C, isDark, projects, onClose, onCreate }) {
           </div>
         ))}
       </div>
-      {dup && <Note C={C} tone="warn" style={{ marginBottom: 12 }}>This family already has projects from this workflow. Creating it again adds duplicates.</Note>}
+      {dup && <Note C={C} tone="info" style={{ marginBottom: 12 }}>This family already has projects from this workflow. Creating it again only adds steps or tasks that are missing; nothing is duplicated.</Note>}
       {w?.next && <Note C={C} tone="info" style={{ marginBottom: 12 }}>Next stage in the monday flow: {WORKFLOW_BY_ID[w.next].name}. Start it from here when the client moves forward.</Note>}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Btn C={C} ghost onClick={onClose}>Cancel</Btn>

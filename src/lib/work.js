@@ -118,8 +118,8 @@ export function buildTemplate(startIso) {
   const tasks = []
   ENGAGEMENT_TEMPLATE.forEach((p, i) => {
     const key = `tpl-${i}`
-    projects.push({ _key: key, name: p.name, color: p.color || PROJECT_COLORS[i % PROJECT_COLORS.length], due: addDays(startIso, Math.max(...p.tasks.map((t) => t.day))), workflow: 'standard' })
-    p.tasks.forEach((t) => tasks.push({ projectKey: key, title: t.title, due: addDays(startIso, t.day), priority: t.priority || 'medium', owner: '' }))
+    projects.push({ _key: key, seedKey: `standard:${i}`, name: p.name, color: p.color || PROJECT_COLORS[i % PROJECT_COLORS.length], due: addDays(startIso, Math.max(...p.tasks.map((t) => t.day))), workflow: 'standard' })
+    p.tasks.forEach((t, j) => tasks.push({ projectKey: key, seedKey: `standard:${i}:${j}`, title: t.title, due: addDays(startIso, t.day), priority: t.priority || 'medium', owner: '' }))
   })
   return { projects, tasks }
 }
@@ -136,10 +136,10 @@ export function buildWorkflow(workflowId, startIso) {
     const specs = step.tasks.length ? step.tasks.map((t) => (Array.isArray(t) ? { title: t[0], ...t[1] } : { title: t })) : [{ title: step.name }]
     const days = specs.map((t) => t.day).filter((d) => d != null)
     const stepDay = step.day != null ? step.day : days.length ? Math.max(...days) : null
-    projects.push({ _key: key, name: step.name, color: step.color || PROJECT_COLORS[i % PROJECT_COLORS.length], due: stepDay != null ? addDays(startIso, stepDay) : '', workflow: w.id })
-    specs.forEach((t) => {
+    projects.push({ _key: key, seedKey: `${w.id}:${i}`, name: step.name, color: step.color || PROJECT_COLORS[i % PROJECT_COLORS.length], due: stepDay != null ? addDays(startIso, stepDay) : '', workflow: w.id })
+    specs.forEach((t, j) => {
       const notes = [t.notes, t.ref ? `Template file in monday: ${t.ref}` : ''].filter(Boolean).join('\n')
-      tasks.push({ projectKey: key, title: t.title, due: t.day != null ? addDays(startIso, t.day) : '', priority: t.priority || 'medium', owner: '', notes })
+      tasks.push({ projectKey: key, seedKey: `${w.id}:${i}:${j}`, title: t.title, due: t.day != null ? addDays(startIso, t.day) : '', priority: t.priority || 'medium', owner: '', notes })
     })
   })
   return { projects, tasks }
@@ -350,12 +350,21 @@ export function useWork(familyId) {
     recs.forEach((r) => { next[r.id] = r })
     commit(next)
     if (!SUPABASE_ENABLED) return
-    const batch = recs.map(({ id, family_id, kind, data }) => ({ id, family_id, kind, data }))
+    const batch = recs.map(({ id, family_id, kind, data, seed_key }) => ({ id, family_id, kind, data, ...(seed_key ? { seed_key } : {}) }))
     batch.forEach((r) => remember(s, r.id, r.data))
+    const seeded = batch.some((r) => r.seed_key)
     const p = (async () => {
-      const { error: e } = await supabase.from('work_items').insert(batch)
+      // Seeded rows go in with ON CONFLICT DO NOTHING on (family_id, seed_key): the database refuses a second copy even if
+      // two browsers seed at the same moment. Rows that lost the race are dropped from local state.
+      const q = seeded ? supabase.from('work_items').upsert(batch, { onConflict: 'family_id,seed_key', ignoreDuplicates: true }).select('id') : supabase.from('work_items').insert(batch)
+      const { data: saved, error: e } = await q
       if (e) throw e
-      batch.forEach((r) => s.persisted.add(r.id))
+      const kept = seeded ? new Set((saved || []).map((x) => x.id)) : null
+      batch.forEach((r) => { if (!kept || kept.has(r.id)) s.persisted.add(r.id) })
+      if (kept) {
+        const lost = batch.filter((r) => !kept.has(r.id)).map((r) => r.id)
+        if (lost.length) { const cur = { ...rowsRef.current }; lost.forEach((id) => delete cur[id]); commit(cur) }
+      }
     })()
     const settled = p.catch(fail)
     batch.forEach((r) => {
@@ -382,27 +391,38 @@ export function useWork(familyId) {
     insertRecords([rec]); return rec.id
   }, [insertRecords])
   // Template / import: create several projects and tasks at once (one insert). Tasks reference a new project by
-  // `projectKey` (matching a project spec's `_key`) or an existing one by `projectId`.
+  // `projectKey` (matching a project spec's `_key`) or an existing one by `projectId`. Specs carrying a `seedKey` are
+  // idempotent: a project or task whose seed key already exists for this family is skipped (and new tasks are attached to the
+  // existing project), so seeding twice never duplicates anything. Returns counts of what was added and skipped.
   const addMany = useCallback((projectSpecs = [], taskSpecs = []) => {
     const recs = []
     const keyToId = {}
+    const bySeed = {}
+    Object.values(rowsRef.current).forEach((r) => { if (r.seed_key) bySeed[r.seed_key] = r.id })
+    const out = { added: { projects: 0, tasks: 0 }, skipped: { projects: 0, tasks: 0 }, keyToId }
     let po = nextOrder('project', () => true)
     projectSpecs.forEach((p, i) => {
-      const { _key, ...data } = p
+      const { _key, seedKey, ...data } = p
+      const k = _key ?? `p${i}`
+      if (seedKey && bySeed[seedKey]) { keyToId[k] = bySeed[seedKey]; out.skipped.projects++; return }
       const used = Object.values(rowsRef.current).filter((r) => r.kind === 'project').length + i
       const rec = makeRec('project', { name: 'New project', color: PROJECT_COLORS[used % PROJECT_COLORS.length], owner: '', due: '', status: 'active', order: po++, collapsed: false, ...data })
-      keyToId[_key ?? `p${i}`] = rec.id; recs.push(rec)
+      if (seedKey) { rec.seed_key = seedKey; bySeed[seedKey] = rec.id }
+      keyToId[k] = rec.id; recs.push(rec); out.added.projects++
     })
     const orders = {}
     taskSpecs.forEach((t) => {
-      const { projectKey, ...data } = t
+      const { projectKey, seedKey, ...data } = t
       const projectId = data.projectId || keyToId[projectKey]
       if (!projectId) return
+      if (seedKey && bySeed[seedKey]) { out.skipped.tasks++; return }
       if (orders[projectId] == null) orders[projectId] = nextOrder('task', (r) => r.data?.projectId === projectId)
-      recs.push(makeRec('task', { title: '', status: 'todo', owner: '', due: '', priority: 'medium', notes: '', subtasks: [], files: [], comments: [], recId: '', doneAt: '', ...data, projectId, order: orders[projectId]++ }))
+      const rec = makeRec('task', { title: '', status: 'todo', owner: '', due: '', priority: 'medium', notes: '', subtasks: [], files: [], comments: [], recId: '', doneAt: '', ...data, projectId, order: orders[projectId]++ })
+      if (seedKey) { rec.seed_key = seedKey; bySeed[seedKey] = rec.id }
+      recs.push(rec); out.added.tasks++
     })
     insertRecords(recs)
-    return keyToId
+    return out
   }, [insertRecords])
 
   const patchRow = useCallback((id, kind, patch) => {
