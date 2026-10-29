@@ -2,10 +2,52 @@ name = "planning-api-proxy"
 main = "index.js"
 compatibility_date = "2026-01-01"
 
-# Comma-separated list of origins allowed to call the proxy. Add your Cloudflare Pages URL
-# (and a custom domain if you add one). Add http://localhost:5173 only while developing.
+# Plain (non-secret) settings. Everything here is safe to commit.
 [vars]
-ALLOWED_ORIGINS = "https://paradiem-planning.pages.dev"
+# Comma-separated list of exact origins (scheme + host, no path, no trailing slash) allowed to call the proxy.
+# Anything else gets 403 before any login check or call to Anthropic.
+ALLOWED_ORIGINS = "https://gavinmorel1.github.io"
 
-# Secrets are NOT set here. Run once:
-#   npx wrangler secret put ANTHROPIC_KEY
+# Our Supabase project. Used to verify login tokens (issuer = SUPABASE_URL + "/auth/v1").
+SUPABASE_URL = "https://khpddtxiyacrivlliwdw.supabase.co"
+
+# The project's PUBLISHABLE (anon) key, the same value as VITE_SUPABASE_ANON_KEY. It is public by design.
+# It is only used as a fallback to ask Supabase "is this token valid?" (for example right after a key rotation).
+# Replace with the value from Supabase -> Project Settings -> API if you ever move projects.
+SUPABASE_ANON_KEY = "sb_publishable_yuJyQbBhncz0QdwfwokERQ_vIx27mJS"
+
+# Models the browser may ask for (comma-separated) and the largest max_tokens it may request.
+ALLOWED_MODELS = "claude-opus-5,claude-sonnet-5-5,claude-haiku-5-5"
+MAX_OUTPUT_TOKENS = "32000"
+# Largest request body accepted, in bytes (25 MB: PDFs are sent base64-encoded inside the JSON).
+MAX_BODY_BYTES = "26214400"
+
+# Fallback limiter used ONLY when the RATE_LIMITER binding below is missing (e.g. `wrangler dev`):
+# at most RATE_LIMIT_MAX calls per user per RATE_LIMIT_PERIOD_SECONDS, counted per Worker instance.
+RATE_LIMIT_MAX = "20"
+RATE_LIMIT_PERIOD_SECONDS = "60"
+
+# Local development only. Set to "true" to also allow http://localhost:5173 and http://localhost:4173.
+# Leave "false" in production.
+ALLOW_LOCALHOST = "false"
+# Requests with no Origin header (curl, scripts) are refused unless this is "true". Keep "false" in production;
+# flip it temporarily if you want to test with plain curl (see README).
+ALLOW_NO_ORIGIN = "false"
+
+# Per-user rate limit (Cloudflare Workers Rate Limiting binding, keyed by the signed-in user's id).
+# Current syntax is [[ratelimits]] (Wrangler 4.x). `period` must be 10 or 60 seconds.
+# namespace_id is any number you choose, unique within your Cloudflare account.
+# If your Wrangler is older and rejects [[ratelimits]], delete this block and use the legacy form instead:
+#   [[unsafe.bindings]]
+#   name = "RATE_LIMITER"
+#   type = "ratelimit"
+#   namespace_id = "1001"
+#   simple = { limit = 20, period = 60 }
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+# Secrets are NOT set here (they would be public). Set them once with:
+#   npx wrangler secret put ANTHROPIC_API_KEY      (required; the legacy name ANTHROPIC_KEY also works)
+#   npx wrangler secret put SUPABASE_JWT_SECRET    (optional; only if the project still uses the legacy HS256 JWT secret)
