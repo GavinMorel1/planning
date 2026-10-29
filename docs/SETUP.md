@@ -15,7 +15,8 @@ Three services, all with free tiers. You need: a paradiem.org email, a credit ca
 ## 1. Supabase — logins, shared data, private document storage (15 min)
 
 1. Go to https://supabase.com and create an account with your paradiem.org email. Create an organisation named **Paradiem** and a project named **planning** (pick the US East region, save the database password somewhere safe).
-2. In the left sidebar open **SQL Editor → New query**. Paste the whole contents of `supabase/schema.sql` from this repository and click **Run**. It creates the two tables, the security rules that restrict everything to @paradiem.org accounts, and the private `documents` bucket.
+2. **Updating an existing project:** paste `supabase/ALL_PENDING_MIGRATIONS.sql` (every change since the first schema, safe to re-run) into **SQL Editor → New query** and click **Run**. Optional clean-ups live in `supabase/cleanup/` (preview before running).
+2. (First-time setup) In the left sidebar open **SQL Editor → New query**. Paste the whole contents of `supabase/schema.sql` from this repository and click **Run**. It creates the two tables, the security rules that restrict everything to @paradiem.org accounts, and the private `documents` bucket.
 3. Open **Authentication → Providers → Email**. Leave Email enabled. Turn **Confirm email** on (recommended) so only real inboxes can sign up.
 4. Open **Project Settings → API**. Copy two values:
    - **Project URL** → this is `VITE_SUPABASE_URL`

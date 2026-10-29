@@ -49,8 +49,8 @@ export function RetirementTab({ C, isDesktop, model, run, cfg, save }) {
               {!table.length ? <div style={{ fontSize: 12, color: C.t4 }}>No Social Security benefit entered.</div> : (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {table.map((t) => (
-                    <div key={t.age} onClick={() => setMember(m.id, { ssClaimAge: t.age })} style={{ cursor: 'pointer', minWidth: 74, padding: '8px 10px', borderRadius: 10, textAlign: 'center', background: t.age === m.ssClaimAge ? C.accentSoft : C.surface, border: `1px solid ${t.age === m.ssClaimAge ? C.accent : C.border}` }}>
-                      <div style={{ fontSize: 10.5, color: C.t4 }}>Age {t.age}</div><div style={{ fontSize: 13.5, fontWeight: 800, color: C.t1 }}>{fmtUsd(t.annual ?? t.annualBenefit ?? 0, { compact: true })}</div>
+                    <div key={t.claimAge} onClick={() => setMember(m.id, { ssClaimAge: t.claimAge })} style={{ cursor: 'pointer', minWidth: 74, padding: '8px 10px', borderRadius: 10, textAlign: 'center', background: t.claimAge === m.ssClaimAge ? C.accentSoft : C.surface, border: `1px solid ${t.claimAge === m.ssClaimAge ? C.accent : C.border}` }}>
+                      <div style={{ fontSize: 10.5, color: C.t4 }}>Age {t.claimAge}</div><div style={{ fontSize: 13.5, fontWeight: 800, color: C.t1 }}>{fmtUsd(t.annual, { compact: true })}</div>
                     </div>
                   ))}
                 </div>

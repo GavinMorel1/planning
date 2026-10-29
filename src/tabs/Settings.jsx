@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { CLAUDE_ENABLED, MODEL } from '../lib/claude'
 import { Card, Eyebrow, Title, SubTabs, Btn, Input, Field, Grid, Row, Note, TextArea, Pill, Confirm } from '../components/ui'
-import { DEFAULT_SETTINGS, DEFAULT_ROSTER } from '../data/defaults'
+import { DEFAULT_SETTINGS, DEFAULT_ROSTER, COPY } from '../data/defaults'
 import { download } from '../lib/util'
 import { lockApp } from '../lib/passcode'
 import { DEFAULT_RATES } from '../lib/numbersCalc'
@@ -139,6 +139,14 @@ export default function Settings({ C, isDesktop, themeName, setThemeName }) {
             ))}
           </Grid>
           <div style={{ fontSize: 11.5, color: C.t4, marginTop: 8 }}>A single person's estate exemption is half the married figure. Defaults: under-$5M deck prints sections 1, 5, 6, 8; $5M+ prints 1, 4, 5, 6, 8 (each family can change its ticks).</div>
+        </Card>
+      )}
+      {sub === 'firm' && (
+        <Card C={C} style={{ marginBottom: 14 }}>
+          <Eyebrow C={C}>Cash-flow report · compliance disclosure</Eyebrow>
+          <div style={{ fontSize: 12, color: C.t3, marginBottom: 10 }}>Printed on the last page of every PDF and PowerPoint exported from the Cashflow tab's Reports sub-tab, and on the cash-flow slides in the Gap Analysis deck. Leave it matching the default unless Compliance has approved different wording.</div>
+          <TextArea C={C} rows={7} value={settings.copy?.cashflowDisclosure ?? COPY.hypothetical} onChange={(v) => updateSettings((st) => ({ ...st, copy: { ...(st.copy || {}), cashflowDisclosure: v } }))} />
+          <Row style={{ marginTop: 8 }}><Btn C={C} small ghost onClick={() => updateSettings((st) => { const copy = { ...(st.copy || {}) }; delete copy.cashflowDisclosure; return { ...st, copy } })}>Restore default wording</Btn></Row>
         </Card>
       )}
 

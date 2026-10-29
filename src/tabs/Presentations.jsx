@@ -1,19 +1,28 @@
 import { useState } from 'react'
 import { useStore, useFamily } from '../lib/store'
 import { buildAssessment, buildGap } from '../lib/pptx'
-import { Card, Eyebrow, Title, Btn, Grid, Row, Note, Pill, Check, Empty, Field, Input, TextArea, SubTabs } from '../components/ui'
+import { Card, Eyebrow, Title, Btn, Grid, Row, Note, Pill, Check, Empty, Field, Input, Select, TextArea, SubTabs } from '../components/ui'
 import { download, nowIso, uid, fmtDate } from '../lib/util'
 import { DOC_CATEGORIES } from '../data/docCategories'
 import Assessment from './Assessment'
+import { useCashflowModel } from '../lib/cashflowStore'
+import { useAuth } from '../lib/auth'
+import { engineConfig } from '../cashflow/run'
+import { assembleReport } from '../cashflow/reports/assemble'
+import { REPORT_SECTIONS } from '../cashflow/reports/content'
+import { defaultDisclosure } from '../cashflow/ui/Reports'
 
 export default function Presentations({ C, isDesktop, setTab }) {
   const { settings } = useStore()
   const [f, patch] = useFamily()
+  const cf = useCashflowModel(f)
+  const { email } = useAuth()
   const [sub, setSubState] = useState(() => { try { return localStorage.getItem('planning_pres_sub') === 'assessment' ? 'assessment' : 'decks' } catch { return 'decks' } })
   const setSub = (v) => { setSubState(v); try { localStorage.setItem('planning_pres_sub', v) } catch { /* ignore */ } }
   const [busy, setBusy] = useState('')
   const goals = f.goals || []
   const gm = f.gapMeta || {}
+  const cfSections = (gm.cashflowSections || []).filter((id) => REPORT_SECTIONS.some((x) => x.id === id))
   const recs = (f.recommendations || []).filter((r) => r.status === 'accepted')
   const checks = [
     ['Spouse names', Boolean(f.profile?.spouse1?.name), 'families'],
@@ -28,14 +37,19 @@ export default function Presentations({ C, isDesktop, setTab }) {
   const run = async (type) => {
     setBusy(type)
     try {
-      const blob = type === 'assessment' ? await buildAssessment(f, settings) : await buildGap(f, settings)
+      let cashflowReport = null
+      if (type === 'gap' && cfSections.length) {
+        const sc = cf.model.scenarios.some((x) => x.id === gm.cashflowScenario) ? gm.cashflowScenario : 'base'
+        cashflowReport = assembleReport({ familyName: f.name, title: 'Cash Flow Analysis', preparedBy: email || 'Paradiem', date: gm.date || '', model: cf.model, scenarioIds: [sc], sections: cfSections, narrative: '', actionItems: [], disclosure: defaultDisclosure(settings), cfg: engineConfig(settings), monteCarloRuns: 500 })
+      }
+      const blob = type === 'assessment' ? await buildAssessment(f, settings) : await buildGap(f, settings, { cashflowReport })
       const filename = `${f.name.replace(/[^A-Za-z0-9]+/g, '-')}-${type === 'assessment' ? 'Family-Capital-Assessment' : 'Family-Capital-Gap-Analysis'}-${new Date().toISOString().slice(0, 10)}.pptx`
       download(blob, filename)
       patch({ presentations: [...(f.presentations || []), { id: uid(), type, filename, createdAt: nowIso(), tier: f.tier, goals: goals.length }] })
     } catch (e) { alert(`Deck failed: ${e.message}`); console.error(e) }
     setBusy('')
   }
-  const gapOutline = ['Cover', 'Disclosures', 'Two Kinds of Return', 'Our Process (Gap Analysis = today)', 'What you said you want', `Goals and Intentions (${goals.length})`, 'Gap summary (met / missed / cost of inaction)', `One analysis page per goal (${goals.length})`, gm.includeToolPages !== false ? `Recommended tools (${recs.length}, by priority)` : null, gm.includeInvestmentSlides !== false ? 'Investment performance (Dividend, Growth)' : null, 'Balance sheet', 'Estate tax information', `Estate flow chart (editable shapes${f.flowchart?.animation?.enabled ? ', animated' : ''})`, 'Current plan analysis (✓ / ×)', 'Gap summary', "What's top of mind?", 'Team & Advocates', 'Blueprint scope + fee', 'Timeline — first year', 'Next steps (action plan)'].filter(Boolean)
+  const gapOutline = ['Cover', 'Disclosures', 'Two Kinds of Return', 'Our Process (Gap Analysis = today)', 'What you said you want', `Goals and Intentions (${goals.length})`, 'Gap summary (met / missed / cost of inaction)', `One analysis page per goal (${goals.length})`, gm.includeToolPages !== false ? `Recommended tools (${recs.length}, by priority)` : null, gm.includeInvestmentSlides !== false ? 'Investment performance (Dividend, Growth)' : null, 'Balance sheet', 'Estate tax information', cfSections.length ? `Cash flow planning (${cfSections.length} section${cfSections.length === 1 ? '' : 's'})` : null, `Estate flow chart (editable shapes${f.flowchart?.animation?.enabled ? ', animated' : ''})`, 'Current plan analysis (✓ / ×)', 'Gap summary', "What's top of mind?", 'Team & Advocates', 'Blueprint scope + fee', 'Timeline — first year', 'Next steps (action plan)'].filter(Boolean)
 
   if (sub === 'assessment') {
     return (
@@ -64,6 +78,12 @@ export default function Presentations({ C, isDesktop, setTab }) {
               <Check C={C} checked={gm.includeToolPages !== false} onChange={(v) => patch({ gapMeta: { ...gm, includeToolPages: v } })} label="Include recommended-tools pages" />
             </div>
           </Grid>
+          <Field C={C} label="Cash flow sections" style={{ marginBottom: 10 }} hint={cf.exists ? 'Pulled from this family\'s saved Cashflow plan, using the numbers on the Cashflow > Reports tab.' : 'No saved Cashflow plan yet; the slides use the figures entered on the Families tab.'}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginBottom: 6 }}>
+              {REPORT_SECTIONS.map((x) => <Check key={x.id} C={C} checked={cfSections.includes(x.id)} onChange={(v) => patch({ gapMeta: { ...gm, cashflowSections: v ? [...cfSections, x.id] : cfSections.filter((y) => y !== x.id) } })} label={x.label} />)}
+            </div>
+            {cfSections.length > 0 && <Select C={C} value={cf.model.scenarios.some((x) => x.id === gm.cashflowScenario) ? gm.cashflowScenario : 'base'} onChange={(v) => patch({ gapMeta: { ...gm, cashflowScenario: v } })} options={[{ value: 'base', label: 'Base Facts' }, ...cf.model.scenarios.map((x) => ({ value: x.id, label: x.name }))]} />}
+          </Field>
           <Field C={C} label="Next steps (one per line)" style={{ marginBottom: 10 }} hint="Shown on the closing Action Plan slide. Leave blank for the standard five."><TextArea C={C} rows={3} value={(gm.nextSteps || []).join('\n')} onChange={(v) => patch({ gapMeta: { ...gm, nextSteps: v.split('\n') } })} placeholder={'Cash Flow and Financial Analysis\nGenerational Impact Retreat\nFinalize Goals and Intentions\nIntroduction to Advisors\nParadiem Planning Day'} /></Field>
           <Row><Btn C={C} primary disabled={!!busy} onClick={() => run('gap')}>{busy === 'gap' ? 'Building…' : 'Download .pptx'}</Btn><Btn C={C} ghost onClick={() => setTab('gap')}>Edit analysis</Btn></Row>
         </Card>

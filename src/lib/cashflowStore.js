@@ -119,5 +119,6 @@ export function useCashflowModel(family) {
   }, [familyId])
   const restore = useCallback(async (version) => { const m = await getVersion(version); await save(m, { source: `restore v${version}`, note: `Restored version ${version}` }, { immediate: true }) }, [getVersion, save])
 
-  return { model: state.model, ready: state.ready, version: state.version, exists: state.exists, saving, error, missingTable, save, loadHistory, getVersion, restore, reload: load, clearError: () => setError('') }
+  const currentVersion = useCallback(() => ref.current.version, [])
+  return { currentVersion, model: state.model, ready: state.ready, version: state.version, exists: state.exists, saving, error, missingTable, save, loadHistory, getVersion, restore, reload: load, clearError: () => setError('') }
 }

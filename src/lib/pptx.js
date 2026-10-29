@@ -114,7 +114,7 @@ async function buildAssessmentUnder5(pptx, f, settings) {
 }
 
 // ───────────────────────── Gap Analysis deck ─────────────────────────
-export async function buildGap(f, settings) {
+export async function buildGap(f, settings, { cashflowReport = null } = {}) {
   kit.logoSmall = null
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
@@ -137,6 +137,11 @@ export async function buildGap(f, settings) {
   if (gm.includeInvestmentSlides !== false) { perfTable(pptx, 'dividend', settings.performance); perfTable(pptx, 'growth', settings.performance) }
   balanceSheetSlide(pptx, f)
   estateTaxSlide(pptx, f, tax)
+  if (cashflowReport) { // sections chosen on the Presentations tab, built from the family's saved cash-flow model
+    const { addReportSlides } = await import('../cashflow/reports/pptx')
+    divider(pptx, ['Cash Flow', 'Planning'])
+    addReportSlides(pptx, cashflowReport, { eyebrow: 'Cash flow planning', pageNumbers: false })
+  }
   divider(pptx, ['Your Current', 'Estate Flow Chart'])
   let flowNames = null
   const fc = f.flowchart

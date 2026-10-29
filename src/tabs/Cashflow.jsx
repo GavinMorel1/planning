@@ -1,65 +1,103 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useStore, useFamily } from '../lib/store'
-import { Card, Eyebrow, Title, Grid, Field, Input, Note, Btn, Row, Stat } from '../components/ui'
-import { fmtUsd, num } from '../lib/util'
-import { netWorthOf } from './Families'
+import { Card, Eyebrow, Title, SubTabs, Btn, Note, Select, Confirm, Empty, Spinner } from '../components/ui'
+import IntakePanel from '../components/IntakePanel'
+import CashflowInputs from '../components/CashflowInputs'
+import Overview from '../cashflow/ui/Overview'
+import { CashFlowTable, NetWorthTab, TaxesTab } from '../cashflow/ui/Tables'
+import { RetirementTab, MonteCarloTab } from '../cashflow/ui/Retirement'
+import Scenarios from '../cashflow/ui/Scenarios'
+import ReportsTab from '../cashflow/ui/Reports'
+import { usePlan } from '../cashflow/ui/useResults'
+import { useCashflowModel } from '../lib/cashflowStore'
+import { summarizeChange } from '../cashflow/summary'
+import { modelGaps } from '../cashflow/types'
+import { fmtDate } from '../lib/util'
 
-// This tab keeps the numbers the decks need and reads what Claude extracted from uploaded eMoney reports
-// (Documents › eMoney Reports).
+const TABS = [['overview', 'Overview'], ['table', 'Cash Flow Table'], ['networth', 'Net Worth'], ['taxes', 'Taxes'], ['retirement', 'Retirement'], ['montecarlo', 'Monte Carlo'], ['scenarios', 'Scenarios'], ['reports', 'Reports'], ['inputs', 'Inputs']]
+
 export default function Cashflow({ C, isDesktop, setTab }) {
-  const [f, patch] = useFamily()
-  const a = f.assessment || {}
-  const setA = (k, v) => patch({ assessment: { ...a, [k]: v } })
-  const emoney = (f.documents?.emoney?.files || []).filter((x) => x.extraction)
-  const need = num(a.retirementCashNeed), growth = num(a.cashGrowthPct) || 3
-  const years = [0, 1, 2, 3, 4].map((i) => ({ year: new Date().getFullYear() + i, need: Math.round(need * Math.pow(1 + growth / 100, i)) }))
-  const income = num(f.profile?.householdIncome)
-  const spend = num(a.lifestyleSpend)
+  const [f] = useFamily()
+  const { settings, updateFamily } = useStore()
+  const cf = useCashflowModel(f)
+  const model = cf.model
+  const [sub, setSubState] = useState(() => { try { return localStorage.getItem('planning_cf_sub') || 'overview' } catch { return 'overview' } })
+  const setSub = (v) => { setSubState(v); try { localStorage.setItem('planning_cf_sub', v) } catch { /* ignore */ } }
+  const [planId, setPlanId] = useState('base')
+  const [mcOpts, setMcOpts] = useState({ runs: 1000 })
+  const [showHistory, setShowHistory] = useState(false)
+  const scenario = planId === 'base' ? null : model.scenarios.find((s) => s.id === planId) || null
+  const plan = usePlan(model, settings, scenario, { mcOpts })
+  const base = usePlan(model, settings, null, { auto: false })
+  const patchAssessment = (p) => updateFamily(f.id, (cur) => ({ ...cur, assessment: { ...(cur.assessment || {}), ...p } }))
+  const gaps = useMemo(() => modelGaps(model), [model])
+  const noData = cf.ready && !plan.ready
+
   return (
     <div>
-      <Title C={C} isDesktop={isDesktop} sub="Cash needs and the figures the decks use. Upload eMoney exports in Documents for Claude to read." right={<Btn C={C} onClick={() => setTab('documents')}>Upload eMoney reports</Btn>}>Cashflow · {f.name}</Title>
-      <Grid cols={isDesktop ? 4 : 2} gap={10} style={{ marginBottom: 14 }}>
-        <Stat C={C} label="Household income" value={fmtUsd(income, { compact: true })} />
-        <Stat C={C} label="Lifestyle spend" value={fmtUsd(spend, { compact: true })} />
-        <Stat C={C} label="Net worth" value={fmtUsd(netWorthOf(f), { compact: true })} />
-        <Stat C={C} label="Savings rate" value={income > 0 && spend > 0 ? `${Math.round((1 - spend / income) * 100)}%` : '--'} color={income > 0 && spend > 0 ? (spend / income > 0.9 ? C.dn : C.up) : C.t3} sub={income > 0 && spend > 0 ? '' : 'Needs income and spending'} />
-      </Grid>
-      <Grid cols={isDesktop ? 2 : 1} gap={14}>
-        <Card C={C}>
-          <Eyebrow C={C}>Inputs</Eyebrow>
-          <Grid cols={2} gap={10}>
-            <Field C={C} label="Annual lifestyle spending"><Input C={C} value={a.lifestyleSpend} onChange={(v) => setA('lifestyleSpend', v)} placeholder="e.g. 425000" /></Field>
-            <Field C={C} label="Emergency reserve target"><Input C={C} value={a.reserveTarget} onChange={(v) => setA('reserveTarget', v)} placeholder="e.g. 250000" /></Field>
-            <Field C={C} label="Retirement cash need (year 1)"><Input C={C} value={a.retirementCashNeed} onChange={(v) => setA('retirementCashNeed', v)} placeholder="e.g. 125000" /></Field>
-            <Field C={C} label="Cash need growth % / yr"><Input C={C} value={a.cashGrowthPct} onChange={(v) => setA('cashGrowthPct', v)} placeholder="3" /></Field>
-            <Field C={C} label="Cash on hand (year 1)"><Input C={C} value={a.cashOnHand} onChange={(v) => setA('cashOnHand', v)} /></Field>
-            <Field C={C} label="Monthly income (under-$5M tile)"><Input C={C} value={a.incomeMonthly} onChange={(v) => setA('incomeMonthly', v)} placeholder="e.g. 1750" /></Field>
-          </Grid>
-        </Card>
-        <Card C={C}>
-          <Eyebrow C={C}>5-year cash needs (deck slide)</Eyebrow>
-          <Row gap={8} style={{ marginTop: 6 }}>
-            {years.map((y, i) => (
-              <div key={y.year} style={{ flex: 1, minWidth: 90, padding: '12px 10px', borderRadius: 10, background: i === 0 ? C.accentSoft : C.surface, border: `1px solid ${i === 0 ? C.borderActive : C.border}`, textAlign: 'center' }}>
-                <div style={{ fontSize: 10, color: C.t4, textTransform: 'uppercase', letterSpacing: 1 }}>Year {i + 1}</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: C.t1 }}>{need ? fmtUsd(y.need, { compact: true }) : '—'}</div>
-                <div style={{ fontSize: 10.5, color: C.t3 }}>{y.year}</div>
-              </div>
-            ))}
-          </Row>
-          <div style={{ fontSize: 11.5, color: C.t4, marginTop: 10 }}>Retirement cash need {fmtUsd(need)} · cash on hand {fmtUsd(num(a.cashOnHand))} · grows {growth}% a year.</div>
-        </Card>
-      </Grid>
-      <Card C={C} style={{ marginTop: 14 }}>
-        <Eyebrow C={C}>From eMoney</Eyebrow>
-        {!emoney.length ? <Note C={C}>No eMoney reports read yet. Upload the cash-flow, balance-sheet and estate reports under Documents › eMoney Reports, click Read, and the extracted figures will appear here.</Note> : emoney.map((x) => (
-          <div key={x.id} style={{ padding: '10px 0', borderTop: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.t1 }}>{x.name}</div>
-            <div style={{ fontSize: 12.5, color: C.t3, margin: '4px 0 8px', lineHeight: 1.5 }}>{x.extraction.summary}</div>
-            <Grid cols={isDesktop ? 3 : 1} gap={6}>{(x.extraction.financials || []).map((fin, i) => <div key={i} style={{ fontSize: 12, color: C.t2, display: 'flex', justifyContent: 'space-between', padding: '4px 8px', background: C.surface, borderRadius: 6 }}><span style={{ color: C.t3 }}>{fin.label}</span><b>{fin.value}</b></div>)}</Grid>
-          </div>
-        ))}
-      </Card>
+      <Title C={C} isDesktop={isDesktop} sub="Projection, taxes, Monte Carlo, scenarios and client reports built from this family's cash-flow model."
+        right={<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11.5, color: C.t4 }}>{cf.saving ? 'Saving…' : cf.exists ? `Saved · v${cf.version}` : 'Not saved yet'}</span>
+          <Btn C={C} small ghost onClick={() => setShowHistory(!showHistory)}>History</Btn>
+        </div>}>Cashflow · {f.name}</Title>
+      {cf.missingTable && <Note C={C} tone="warn" style={{ marginBottom: 12 }}>The cash-flow tables are not in the database yet, so changes are kept in this browser session only. Run <code>supabase/ALL_PENDING_MIGRATIONS.sql</code> in the Supabase SQL Editor.</Note>}
+      {cf.error && <Note C={C} tone="danger" style={{ marginBottom: 12 }}><div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><span style={{ flex: 1 }}>{cf.error}</span><Btn C={C} small onClick={cf.clearError}>Dismiss</Btn></div></Note>}
+      {showHistory && <HistoryPanel C={C} cf={cf} close={() => setShowHistory(false)} />}
+
+      <SubTabs C={C} value={sub} onChange={setSub} tabs={TABS.map(([id, label]) => ({ id, label }))} />
+      {sub !== 'inputs' && sub !== 'reports' && model.scenarios.length > 0 && sub !== 'scenarios' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.t4, textTransform: 'uppercase', letterSpacing: 1 }}>Plan</span>
+          <Select C={C} value={planId} onChange={setPlanId} options={[{ value: 'base', label: 'Base Facts' }, ...model.scenarios.map((s) => ({ value: s.id, label: s.name }))]} style={{ padding: '6px 10px', fontSize: 12.5 }} />
+        </div>
+      )}
+
+      {!cf.ready ? <Spinner C={C} label="Loading cash-flow model…" /> : (
+        <>
+          {sub === 'inputs' && (
+            <>
+              <IntakePanel C={C} isDesktop={isDesktop} family={f} cf={cf} summarize={(b, a) => summarizeChange(b, a, settings)} />
+              <CashflowInputs C={C} isDesktop={isDesktop} model={model} save={cf.save} />
+            </>
+          )}
+          {sub === 'reports' && <ReportsTab C={C} isDesktop={isDesktop} family={f} cf={cf} settings={settings} />}
+          {sub !== 'inputs' && sub !== 'reports' && noData && (
+            <Card C={C}><Empty C={C} icon="◇" title="Enter the household first" action={<Btn C={C} primary onClick={() => setSub('inputs')}>Go to Inputs</Btn>}>The projection needs at least one person with a date of birth and some income or accounts. Or drop statements on Inputs and let Claude propose the numbers.{gaps.length > 0 && <><br />Still needed: {gaps.join(' ')}</>}</Empty></Card>
+          )}
+          {sub !== 'inputs' && sub !== 'reports' && !noData && plan.error && <Note C={C} tone="danger">The projection could not run: {plan.error}</Note>}
+          {!noData && plan.run && sub === 'overview' && <Overview C={C} isDesktop={isDesktop} f={f} model={plan.run.model} run={plan.run} mc={plan.mc} mcBusy={plan.mcBusy} runMc={plan.runMc} patchAssessment={patchAssessment} setSub={setSub} />}
+          {!noData && plan.run && sub === 'table' && <CashFlowTable C={C} model={plan.run.model} run={plan.run} />}
+          {!noData && plan.run && sub === 'networth' && <NetWorthTab C={C} isDesktop={isDesktop} model={plan.run.model} run={plan.run} />}
+          {!noData && plan.run && sub === 'taxes' && <TaxesTab C={C} isDesktop={isDesktop} model={plan.run.model} run={plan.run} />}
+          {!noData && plan.run && sub === 'retirement' && <RetirementTab C={C} isDesktop={isDesktop} model={plan.run.model} run={plan.run} cfg={plan.cfg} save={cf.save} />}
+          {!noData && plan.run && sub === 'montecarlo' && <MonteCarloTab C={C} isDesktop={isDesktop} model={plan.run.model} run={plan.run} mc={plan.mc} mcBusy={plan.mcBusy} runMc={plan.runMc} mcOpts={mcOpts} setMcOpts={setMcOpts} />}
+          {!noData && base.run && sub === 'scenarios' && <Scenarios C={C} isDesktop={isDesktop} model={model} save={cf.save} baseRun={base.run} baseMc={planId === 'base' ? plan.mc : null} settings={settings} />}
+        </>
+      )}
     </div>
+  )
+}
+
+function HistoryPanel({ C, cf, close }) {
+  const [rows, setRows] = useState(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { cf.loadHistory().then(setRows).catch(() => setRows([])) }, [cf.version]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Card C={C} style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><Eyebrow C={C}>Change history</Eyebrow><Btn C={C} small ghost onClick={close}>Close</Btn></div>
+      {rows == null ? <Spinner C={C} label="Loading…" /> : !rows.length ? <div style={{ fontSize: 12.5, color: C.t4 }}>No saved versions yet.</div> : (
+        <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+          {rows.map((r) => (
+            <div key={r.version} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: `1px solid ${C.border}`, fontSize: 12.5, flexWrap: 'wrap' }}>
+              <b style={{ color: C.t1, width: 40 }}>v{r.version}</b>
+              <span style={{ color: C.t3, minWidth: 150 }}>{fmtDate(r.changed_at)} {r.changed_at ? new Date(r.changed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+              <span style={{ color: C.t2, minWidth: 140 }}>{r.changed_by || '—'}</span>
+              <span style={{ flex: 1, minWidth: 160, color: C.t3, overflowWrap: 'anywhere' }} title={r.note || ''}>{r.source || 'manual'}{r.note ? ` · ${String(r.note).slice(0, 120)}` : ''}</span>
+              {r.version !== cf.version && <Confirm C={C} onConfirm={async () => { setBusy(true); try { await cf.restore(r.version) } finally { setBusy(false) } }}>{busy ? '…' : 'Restore'}</Confirm>}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   )
 }

@@ -13,13 +13,17 @@ export async function buildReportPdf(inp: ReportInput, opts: { logo?: string | n
   const d = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' })
   const footerLeft = 'PARADIEM  |  FAMILY CAPITAL ARCHITECTURE', footerMid = 'Paradiem, LLC is a Registered Investment Advisor.', footerRight = 'CONFIDENTIAL — NOT FOR DISTRIBUTION'
   let page = 1
+  // Standard PDF fonts only cover Latin-1: swap characters they cannot draw.
+  const safe = (t: string) => String(t).replace(/\u2212/g, '-').replace(/\u203A/g, '>').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"')
+  const rawText = d.text.bind(d) as (...a: unknown[]) => unknown
+  ;(d as unknown as { text: (...a: unknown[]) => unknown }).text = (t: unknown, ...rest: unknown[]) => rawText(Array.isArray(t) ? t.map((x) => safe(String(x))) : safe(String(t)), ...rest)
 
   const footer = () => {
     d.setFillColor(STRIP); d.rect(0, H - 26, W, 26, 'F')
     d.setFont('helvetica', 'normal'); d.setFontSize(6.5); d.setTextColor(TAUPE)
-    d.text(footerLeft, 24, H - 10, { charSpace: 1.4 } as never)
+    d.text(footerLeft, 24, H - 10)
     d.text(footerMid, W / 2, H - 10, { align: 'center' })
-    d.text(`${footerRight}    ${page}`, W - 24, H - 10, { align: 'right', charSpace: 1.1 } as never)
+    d.text(`${footerRight}   |   ${page}`, W - 24, H - 10, { align: 'right' })
   }
   const heading = (title: string, sub?: string) => {
     d.setFont('times', 'normal'); d.setFontSize(24); d.setTextColor(NAVY); d.text(title, ML, 62)
@@ -46,14 +50,14 @@ export async function buildReportPdf(inp: ReportInput, opts: { logo?: string | n
     blk.items.forEach((it, i) => {
       const x = ML + i * (w + gap)
       d.setFillColor(TILE); d.rect(x, y, w, 62, 'F'); d.setFillColor(NAVY); d.rect(x, y, w, 3, 'F')
-      d.setFont('helvetica', 'bold'); d.setFontSize(6.5); d.setTextColor(CAPTION); d.text(it.label.toUpperCase(), x + 8, y + 15, { charSpace: 0.8 } as never)
+      d.setFont('helvetica', 'bold'); d.setFontSize(6.5); d.setTextColor(CAPTION); d.text(it.label.toUpperCase(), x + 8, y + 15)
       it.values.forEach((v, k) => { d.setFont('times', 'normal'); d.setFontSize(it.values.length > 1 ? 12 : 17); d.setTextColor(k ? '#3A4070' : NAVY); d.text(v, x + 8, y + 34 + k * 14) })
     })
     return y + 76
   }
 
   const table = (blk: Extract<Block, { type: 'table' }>, y: number, title: string, sub?: string) => {
-    const total = W - ML - MR, weights = blk.columns.map((c) => (c.align === 'right' ? 1 : 1.4)), sum = weights.reduce((a, b) => a + b, 0)
+    const total = W - ML - MR, weights = blk.columns.map((c) => (c.align === 'right' ? 1.15 : 1.1)), sum = weights.reduce((a, b) => a + b, 0)
     const widths = weights.map((w) => (w / sum) * total)
     const rowH = 16
     const head = () => {

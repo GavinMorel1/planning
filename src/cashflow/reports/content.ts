@@ -87,7 +87,7 @@ export function buildSections(inp: ReportInput): Section[] {
   if (has('cashFlowTable')) {
     const rows = one.projection.rows
     out.push({ id: 'cashFlowTable', title: 'Cash flow table', subtitle: `${one.name}. Shortfall years are highlighted.`, blocks: [{ type: 'table',
-      columns: [{ key: 'year', label: 'Year' }, { key: 'age', label: 'Age' }, { key: 'income', label: 'Income', align: 'right' }, { key: 'exp', label: 'Expenses', align: 'right' }, { key: 'tax', label: 'Taxes', align: 'right' }, { key: 'wd', label: 'Withdrawals', align: 'right' }, { key: 'net', label: 'Surplus / shortfall', align: 'right' }, { key: 'nw', label: 'Net worth', align: 'right' }],
+      columns: [{ key: 'year', label: 'Year' }, { key: 'age', label: 'Age' }, { key: 'income', label: 'Income', align: 'right' }, { key: 'exp', label: 'Expenses', align: 'right' }, { key: 'tax', label: 'Taxes', align: 'right' }, { key: 'wd', label: 'Withdrawals', align: 'right' }, { key: 'net', label: 'Surplus/short', align: 'right' }, { key: 'nw', label: 'Net worth', align: 'right' }],
       rows: rows.map((r) => ({ year: String(r.year), age: String(primaryAge(m, r) ?? '—'), income: usd(sumIncome(r)), exp: usd(r.expenses.total), tax: usd(r.taxes.total), wd: usd(r.withdrawals.total), net: r.shortfall > 0 ? usd(-r.shortfall) : usd(r.surplus), nw: usd(r.netWorth) })), flagRows: shortfallRows(one.projection) }] })
   }
 

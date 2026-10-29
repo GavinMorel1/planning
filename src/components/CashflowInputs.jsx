@@ -26,7 +26,7 @@ function Cell({ C, col, row, members, onSet }) {
 
 function Table({ C, isDesktop, title, hint, items, columns, members, onChange, make, empty }) {
   const set = (id, k, v) => onChange(items.map((r) => (r.id === id ? { ...r, [k]: v } : r)))
-  const grid = `repeat(${columns.length}, minmax(${isDesktop ? 96 : 120}px, ${columns.map((c) => c.w || 1).join('fr ')}fr)) 30px`
+  const grid = `${columns.map((c) => `minmax(${isDesktop ? 92 : 120}px, ${c.w || 1}fr)`).join(' ')} 30px`
   return (
     <Card C={C} style={{ marginBottom: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
