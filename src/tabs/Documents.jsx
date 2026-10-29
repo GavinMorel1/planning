@@ -4,10 +4,15 @@ import { DOC_CATEGORIES, DOC_GROUPS } from '../data/docCategories'
 import { extractDocument, CLAUDE_ENABLED } from '../lib/claude'
 import { Card, Eyebrow, Title, Btn, Pill, Grid, Row, Note, Empty, Stat, SubTabs } from '../components/ui'
 import { download, fmtDate, uid } from '../lib/util'
+import IntakePanel from '../components/IntakePanel'
+import { useCashflowModel } from '../lib/cashflowStore'
+import { summarizeChange } from '../cashflow/summary'
 
 export default function Documents({ C, isDesktop, setTab }) {
   const { putFile, getFile, removeFile, updateFamily } = useStore()
   const [f] = useFamily()
+  const cf = useCashflowModel(f)
+  const { settings } = useStore()
   const [busy, setBusy] = useState({})
   const [open, setOpen] = useState(null) // fileId whose extraction is expanded
   const [group, setGroup] = useState('all')
@@ -54,6 +59,7 @@ export default function Documents({ C, isDesktop, setTab }) {
   return (
     <div>
       <Title C={C} isDesktop={isDesktop} sub="Upload what the family provided. Mark the rest not applicable or leave it missing so the gap shows." right={<Btn C={C} primary disabled={!CLAUDE_ENABLED || !unread} onClick={readAll}>{CLAUDE_ENABLED ? `Read ${unread} unread with Claude` : 'Claude not configured'}</Btn>}>Documents · {f.name}</Title>
+      <IntakePanel C={C} isDesktop={isDesktop} family={f} cf={cf} mode="documents" summarize={(b, a2) => summarizeChange(b, a2, settings)} />
       <Grid cols={isDesktop ? 4 : 2} gap={10} style={{ marginBottom: 14 }}>
         <Stat C={C} label="Received" value={counts.received} color={C.up} />
         <Stat C={C} label="Not applicable" value={counts.na} color={C.t3} />
