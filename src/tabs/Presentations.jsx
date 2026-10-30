@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore, useFamily } from '../lib/store'
 import { buildAssessment, buildGap } from '../lib/pptx'
 import { Card, Eyebrow, Title, Btn, Grid, Row, Note, Pill, Check, Empty, Field, Input, Select, TextArea, SubTabs } from '../components/ui'
-import { download, nowIso, uid, fmtDate } from '../lib/util'
+import { download, nowIso, uid, fmtDate, num } from '../lib/util'
 import { DOC_CATEGORIES } from '../data/docCategories'
 import Assessment from './Assessment'
+import GapAnalysis from './GapAnalysis'
+import GapPlus from './GapPlus'
+import { buildGapPlus, gapPlusOutline } from '../lib/gapPlusDeck'
 import { useCashflowModel } from '../lib/cashflowStore'
 import { useAuth } from '../lib/auth'
 import { engineConfig } from '../cashflow/run'
@@ -17,8 +20,11 @@ export default function Presentations({ C, isDesktop, setTab }) {
   const [f, patch] = useFamily()
   const cf = useCashflowModel(f)
   const { email } = useAuth()
-  const [sub, setSubState] = useState(() => { try { return localStorage.getItem('planning_pres_sub') === 'assessment' ? 'assessment' : 'decks' } catch { return 'decks' } })
+  const SUBS = ['decks', 'gap', 'gapPlus', 'assessment']
+  const [sub, setSubState] = useState(() => { try { const v = localStorage.getItem('planning_pres_sub'); return SUBS.includes(v) ? v : 'decks' } catch { return 'decks' } })
   const setSub = (v) => { setSubState(v); try { localStorage.setItem('planning_pres_sub', v) } catch { /* ignore */ } }
+  useEffect(() => { const h = (e) => { if (SUBS.includes(e.detail)) setSubState(e.detail) }; window.addEventListener('planning:pres-sub', h); return () => window.removeEventListener('planning:pres-sub', h) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const subTabs = [{ id: 'decks', label: 'Decks & history' }, { id: 'gap', label: 'Gap Analysis ($5M+)' }, { id: 'gapPlus', label: 'Gap Analysis+ (under $5M)' }, { id: 'assessment', label: 'Assessment intake' }]
   const [busy, setBusy] = useState('')
   const goals = f.goals || []
   const gm = f.gapMeta || {}
@@ -42,26 +48,29 @@ export default function Presentations({ C, isDesktop, setTab }) {
         const sc = cf.model.scenarios.some((x) => x.id === gm.cashflowScenario) ? gm.cashflowScenario : 'base'
         cashflowReport = assembleReport({ familyName: f.name, title: 'Cash Flow Analysis', preparedBy: email || 'Paradiem', date: gm.date || '', model: cf.model, scenarioIds: [sc], sections: cfSections, narrative: '', actionItems: [], disclosure: defaultDisclosure(settings), cfg: engineConfig(settings), monteCarloRuns: 500 })
       }
-      const blob = type === 'assessment' ? await buildAssessment(f, settings) : await buildGap(f, settings, { cashflowReport })
-      const filename = `${f.name.replace(/[^A-Za-z0-9]+/g, '-')}-${type === 'assessment' ? 'Family-Capital-Assessment' : 'Family-Capital-Gap-Analysis'}-${new Date().toISOString().slice(0, 10)}.pptx`
+      const blob = type === 'assessment' ? await buildAssessment(f, settings) : type === 'gapPlus' ? await buildGapPlus(f, settings, { model: cf.model }) : await buildGap(f, settings, { cashflowReport })
+      const filename = `${f.name.replace(/[^A-Za-z0-9]+/g, '-')}-${{ assessment: 'Family-Capital-Assessment', gap: 'Family-Capital-Gap-Analysis', gapPlus: 'Family-Capital-Gap-Analysis-Plus' }[type]}-${new Date().toISOString().slice(0, 10)}.pptx`
       download(blob, filename)
       patch({ presentations: [...(f.presentations || []), { id: uid(), type, filename, createdAt: nowIso(), tier: f.tier, goals: goals.length }] })
     } catch (e) { alert(`Deck failed: ${e.message}`); console.error(e) }
     setBusy('')
   }
-  const gapOutline = ['Cover', 'Disclosures', 'Two Kinds of Return', 'Our Process (Gap Analysis = today)', 'What you said you want', `Goals and Intentions (${goals.length})`, 'Gap summary (met / missed / cost of inaction)', `One analysis page per goal (${goals.length})`, gm.includeToolPages !== false ? `Recommended tools (${recs.length}, by priority)` : null, gm.includeInvestmentSlides !== false ? 'Investment performance (Dividend, Growth)' : null, 'Balance sheet', 'Estate tax information', cfSections.length ? `Cash flow planning (${cfSections.length} section${cfSections.length === 1 ? '' : 's'})` : null, `Estate flow chart (editable shapes${f.flowchart?.animation?.enabled ? ', animated' : ''})`, 'Current plan analysis (✓ / ×)', 'Gap summary', "What's top of mind?", 'Team & Advocates', 'Blueprint scope + fee', 'Timeline — first year', 'Next steps (action plan)'].filter(Boolean)
+  const feeOn = gm.includeFees !== false && num(gm.feeAum) > 0
+  const gapOutline = ['Cover', 'Disclosures', 'Two Kinds of Return', 'Our Process (Gap Analysis = today)', 'What you said you want', `Goals and Intentions (${goals.length})`, 'Gap summary (met / missed / cost of inaction)', `One analysis page per goal (${goals.length})`, gm.includeToolPages !== false ? `Recommended tools (${recs.length}, by priority)` : null, gm.includeInvestmentSlides !== false ? 'Investment performance (Growth, Dividend)' : null, feeOn ? 'Our Fees' : null, 'Balance sheet', 'Estate tax information', cfSections.length ? `Cash flow planning (${cfSections.length} section${cfSections.length === 1 ? '' : 's'})` : null, `Estate flow chart (editable shapes${f.flowchart?.animation?.enabled ? ', animated' : ''})`, 'Current plan analysis (✓ / ×)', 'Gap summary', "What's top of mind?", 'Team & Advocates', 'Blueprint scope + fee', 'Timeline — first year', 'Next steps (action plan)'].filter(Boolean)
 
-  if (sub === 'assessment') {
+  if (sub !== 'decks') {
     return (
       <div>
-        <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'decks', label: 'Decks & history' }, { id: 'assessment', label: 'Assessment intake' }]} />
-        <Assessment C={C} isDesktop={isDesktop} setTab={setTab} />
+        <SubTabs C={C} value={sub} onChange={setSub} tabs={subTabs} />
+        {sub === 'assessment' && <Assessment C={C} isDesktop={isDesktop} setTab={setTab} />}
+        {sub === 'gap' && <GapAnalysis C={C} isDesktop={isDesktop} setTab={setTab} onBuild={() => run('gap')} />}
+        {sub === 'gapPlus' && <GapPlus C={C} isDesktop={isDesktop} setTab={setTab} cf={cf} />}
       </div>
     )
   }
   return (
     <div>
-      <SubTabs C={C} value={sub} onChange={setSub} tabs={[{ id: 'decks', label: 'Decks & history' }, { id: 'assessment', label: 'Assessment intake' }]} />
+      <SubTabs C={C} value={sub} onChange={setSub} tabs={subTabs} />
       <Title C={C} isDesktop={isDesktop} sub="Editable PowerPoint files built from everything entered for this family, slide-for-slide in the reference deck layouts and colours.">Presentations · {f.name}</Title>
       <Grid cols={isDesktop ? 2 : 1} gap={14}>
         <Card C={C}>
@@ -70,7 +79,8 @@ export default function Presentations({ C, isDesktop, setTab }) {
           <Row><Btn C={C} primary disabled={!!busy} onClick={() => run('assessment')}>{busy === 'assessment' ? 'Building…' : 'Download .pptx'}</Btn><Btn C={C} ghost onClick={() => setSub('assessment')}>Edit intake</Btn></Row>
         </Card>
         <Card C={C}>
-          <Eyebrow C={C}>Family Capital Gap Analysis</Eyebrow>
+          <Row style={{ justifyContent: 'space-between' }}><Eyebrow C={C}>Family Capital Gap Analysis</Eyebrow>{f.tier !== 'under5' && <Pill C={C} color={C.up}>recommended for this family</Pill>}</Row>
+          <div style={{ fontSize: 12.5, color: C.t3, lineHeight: 1.5, marginBottom: 10 }}>For $5M+ clients moving into an ongoing retainer. Goal-by-goal analysis, estate flow, team and Blueprint scope.</div>
           <Grid cols={2} gap={10} style={{ marginBottom: 10 }}>
             <Field C={C} label="Presentation date"><Input C={C} type="date" value={gm.date} onChange={(v) => patch({ gapMeta: { ...gm, date: v } })} /></Field>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'flex-end' }}>
@@ -85,7 +95,13 @@ export default function Presentations({ C, isDesktop, setTab }) {
             {cfSections.length > 0 && <Select C={C} value={cf.model.scenarios.some((x) => x.id === gm.cashflowScenario) ? gm.cashflowScenario : 'base'} onChange={(v) => patch({ gapMeta: { ...gm, cashflowScenario: v } })} options={[{ value: 'base', label: 'Base Facts' }, ...cf.model.scenarios.map((x) => ({ value: x.id, label: x.name }))]} />}
           </Field>
           <Field C={C} label="Next steps (one per line)" style={{ marginBottom: 10 }} hint="Shown on the closing Action Plan slide. Leave blank for the standard five."><TextArea C={C} rows={3} value={(gm.nextSteps || []).join('\n')} onChange={(v) => patch({ gapMeta: { ...gm, nextSteps: v.split('\n') } })} placeholder={'Cash Flow and Financial Analysis\nGenerational Impact Retreat\nFinalize Goals and Intentions\nIntroduction to Advisors\nParadiem Planning Day'} /></Field>
-          <Row><Btn C={C} primary disabled={!!busy} onClick={() => run('gap')}>{busy === 'gap' ? 'Building…' : 'Download .pptx'}</Btn><Btn C={C} ghost onClick={() => setTab('gap')}>Edit analysis</Btn></Row>
+          <Row><Btn C={C} primary disabled={!!busy} onClick={() => run('gap')}>{busy === 'gap' ? 'Building…' : 'Download .pptx'}</Btn><Btn C={C} ghost onClick={() => setSub('gap')}>Edit analysis</Btn></Row>
+        </Card>
+        <Card C={C}>
+          <Row style={{ justifyContent: 'space-between' }}><Eyebrow C={C}>Family Capital Gap Analysis+</Eyebrow>{f.tier === 'under5' && <Pill C={C} color={C.up}>recommended for this family</Pill>}</Row>
+          <div style={{ fontSize: 12.5, color: C.t3, lineHeight: 1.5, marginBottom: 10 }}>For clients under $5M who are moving their investments. Goals, cash flow, cash needs, ownership, performance, lifeboat and an optional LTC annuity comparison.</div>
+          <div style={{ fontSize: 12, color: C.t4, marginBottom: 10 }}>{gapPlusOutline(f, cf.model, settings).length} sections for this family · fields live in the editor</div>
+          <Row><Btn C={C} primary disabled={!!busy} onClick={() => run('gapPlus')}>{busy === 'gapPlus' ? 'Building…' : 'Download .pptx'}</Btn><Btn C={C} ghost onClick={() => setSub('gapPlus')}>Edit deck</Btn></Row>
         </Card>
         <Card C={C}>
           <Eyebrow C={C}>Readiness</Eyebrow>
@@ -102,6 +118,16 @@ export default function Presentations({ C, isDesktop, setTab }) {
           <ol style={{ paddingLeft: 20, fontSize: 12.5, color: C.t2, lineHeight: 1.8 }}>{gapOutline.map((x) => <li key={x}>{x}</li>)}</ol>
         </Card>
       </Grid>
+      <Card C={C} style={{ marginTop: 14 }}>
+        <Eyebrow C={C}>Saved templates</Eyebrow>
+        <div style={{ fontSize: 12.5, color: C.t3, lineHeight: 1.5, marginBottom: 8 }}>The two reference decks the generator is built from. Open one in PowerPoint to see the intended design; the downloads above are rebuilt from the fields for each family.</div>
+        {[['Family Capital Gap Analysis', 'For $5M+ clients moving into an ongoing retainer', 'Family-Capital-Gap-Analysis-template.pptx'], ['Family Capital Gap Analysis+', 'For clients under $5M who are only moving their investments', 'Family-Capital-Gap-Analysis-Plus-template.pptx']].map(([n, d, file]) => (
+          <div key={file} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ flex: 1 }}><div style={{ fontSize: 13.5, fontWeight: 700, color: C.t1 }}>{n}</div><div style={{ fontSize: 12, color: C.t3 }}>{d}</div></div>
+            <a href={`${import.meta.env.BASE_URL}templates/${file}`} download style={{ textDecoration: 'none' }}><Btn C={C} small>Download reference deck</Btn></a>
+          </div>
+        ))}
+      </Card>
       <Card C={C} style={{ marginTop: 14 }}>
         <Eyebrow C={C}>History</Eyebrow>
         {!(f.presentations || []).length ? <div style={{ fontSize: 12.5, color: C.t4 }}>No decks generated yet.</div> : [...f.presentations].reverse().map((p) => (

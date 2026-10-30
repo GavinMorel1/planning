@@ -4,6 +4,7 @@ import { Card, Eyebrow, Title, SubTabs, Btn, Input, TextArea, Select, Field, Tog
 import { fmtUsd, num, uid, ageFrom } from '../lib/util'
 import { familyFlags, FLAG_LABELS } from '../lib/flags'
 import { DOC_CATEGORIES } from '../data/docCategories'
+import GoalsImport from '../components/GoalsImport'
 
 const US_STATES = ['', 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
 export const ASSET_TYPES = [
@@ -172,7 +173,8 @@ export default function Families({ C, isDesktop, setTab }) {
 
       {sub === 'balance' && <BalanceSheet C={C} isDesktop={isDesktop} f={f} patch={patch} />}
 
-      {sub === 'goals' && (
+      {sub === 'goals' && (<>
+        <GoalsImport C={C} compact />
         <Card C={C}>
           <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}>
             <div><Eyebrow C={C} style={{ marginBottom: 2 }}>Goals & Intentions</Eyebrow><div style={{ fontSize: 12, color: C.t3 }}>Typed by the planning team from the surveys and the 90-minute retreat. One line per goal, in the client's words.</div></div>
@@ -192,7 +194,7 @@ export default function Families({ C, isDesktop, setTab }) {
           ))}
           {!(f.goals || []).length && <div style={{ fontSize: 12.5, color: C.t4, padding: '10px 0' }}>No goals yet.</div>}
         </Card>
-      )}
+      </>)}
 
       {sub === 'estate' && (
         <Grid cols={isDesktop ? 2 : 1} gap={14}>

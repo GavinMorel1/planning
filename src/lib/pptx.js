@@ -25,7 +25,7 @@ const {
 export const assessmentVariant = (f) => f.assessment?.variant || (f.tier === 'under5' ? 'under5' : 'over5')
 
 export async function buildAssessment(f, settings) {
-  kit.logoSmall = null; kit.outlines = settings?.deckOutlines !== false
+  kit.logoAll = false; kit.eyebrow = null; kit.logoSmall = null; kit.outlines = settings?.deckOutlines !== false
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
   pptx.author = 'Paradiem'; pptx.company = 'Paradiem, LLC'; pptx.title = `Family Capital Assessment — ${f.name}`
@@ -115,7 +115,8 @@ async function buildAssessmentUnder5(pptx, f, settings) {
 
 // ───────────────────────── Gap Analysis deck ─────────────────────────
 export async function buildGap(f, settings, { cashflowReport = null } = {}) {
-  kit.logoSmall = null
+  kit.logoSmall = await asDataUrl('deck/paradiem-logo-small.png'); kit.logoWhite = await asDataUrl('deck/paradiem-logo-white.png'); kit.logoAll = true; kit.eyebrow = null; kit.next = null
+  try {
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
   pptx.author = 'Paradiem'; pptx.company = 'Paradiem, LLC'; pptx.title = `Family Capital Gap Analysis — ${f.name}`
@@ -124,7 +125,7 @@ export async function buildGap(f, settings, { cashflowReport = null } = {}) {
   const gm = f.gapMeta || {}
   const goals = f.goals || []
   const tax = settings.tax?.[new Date().getFullYear()] || Object.values(settings.tax || {})[0] || {}
-  K.coverOld(pptx, logo, 'Family Capital Gap Analysis', coupleName(f), longDate(gm.date))
+  K.cover(pptx, logo, 'Family Capital Gap Analysis', gm.coverName || coupleName(f), gm.date)
   disclosures(pptx)
   twoKinds(pptx)
   processSlide(pptx, 2)
@@ -134,7 +135,9 @@ export async function buildGap(f, settings, { cashflowReport = null } = {}) {
   for (const g of goals) goalAnalysis(pptx, g)
   const recs = (f.recommendations || []).filter((r) => r.status === 'accepted').sort((a, b) => tierRank(a.tier) - tierRank(b.tier))
   if (gm.includeToolPages !== false && recs.length) toolPages(pptx, recs)
-  if (gm.includeInvestmentSlides !== false) { perfTable(pptx, 'dividend', settings.performance); perfTable(pptx, 'growth', settings.performance) }
+  if (gm.includeInvestmentSlides !== false) { perfTable(pptx, 'growth', settings.performance); perfTable(pptx, 'dividend', settings.performance) }
+  const feeAum = num(gm.feeAum)
+  if (gm.includeFees !== false && feeAum > 0) U.fees(pptx, f.assessment || {}, fs, feeAum, blendedAumRate(feeAum, fs))
   balanceSheetSlide(pptx, f)
   estateTaxSlide(pptx, f, tax)
   if (cashflowReport) { // sections chosen on the Presentations tab, built from the family's saved cash-flow model
@@ -159,4 +162,5 @@ export async function buildGap(f, settings, { cashflowReport = null } = {}) {
   const anim = fc?.animation
   if (flowNames && anim?.enabled) return injectAnimation(blob, animationSteps(fc, flowNames), { mode: anim.mode || 'click', effect: anim.effect || 'appear', delayMs: Number(anim.delayMs) || 700 })
   return blob
+  } finally { kit.logoAll = false; kit.logoSmall = null }
 }

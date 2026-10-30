@@ -53,7 +53,7 @@ export const arrow = (s, pptx, x, y, up, size = 0.19, outline) => s.addShape(up 
 
 // Footer strip: ONE style for every slide (measured from the updated Assessment): 0.34in strip #F1EEE6,
 // 7pt Calibri #8B7355, firm name left, Registered Investment Advisor line centred, confidentiality right.
-export const kit = { outlines: true, next: null, logoSmall: null }
+export const kit = { outlines: true, next: null, logoSmall: null, logoWhite: null, logoAll: false, eyebrow: null } // kit.eyebrow replaces the gold eyebrow on header() slides (the LTC annuity section)
 export function footer(s, pptx) {
   rect(s, pptx, 0, 5.28, W, 0.34, 'F1EEE6')
   const t = (str, o) => s.addText(str, { y: 5.28, h: 0.34, fontFace: F, fontSize: 7, color: '8B7355', margin: 0, valign: 'middle', wrap: false, ...o })
@@ -61,6 +61,8 @@ export function footer(s, pptx) {
   t(COPY.footerCenter, { x: 3.0, w: 4.0, align: 'center' })
   t(COPY.footerRight, { x: 5.82, w: 4.0, align: 'right', charSpacing: 2.01 })
 }
+// Gap Analysis decks carry the small Paradiem logo (white on navy) on every content slide; kit.logoAll is switched on by those builders only.
+export function addLogo(s, navy) { if (!kit.logoAll) return; const lg = navy ? kit.logoWhite : kit.logoSmall; if (lg) s.addImage({ data: lg, x: 8.50, y: 0.29, w: 1.16, h: 0.34 }) }
 export const INVEST_FOOT = undefined // retained so older calls compile; every slide now uses the same footer
 export function base(pptx, { bg = B.bg, bar = true, foot = true, navy = false } = {}) {
   const ov = kit.next || {}; kit.next = null
@@ -69,11 +71,12 @@ export function base(pptx, { bg = B.bg, bar = true, foot = true, navy = false } 
   if ((ov.bar ?? bar) && !navy) rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
   if (ov.foot === false) foot = false
   if (foot) footer(s, pptx)
+  if (!ov.noLogo) addLogo(s, navy)
   return s
 }
 // Standard content header: gold eyebrow, Georgia 26 title, rule (short gold or full-width light)
 export function header(s, pptx, eb, title, { rule = 'gold', x = LM, sub, titleSize = 26, ebSize = 11.5 } = {}) {
-  if (eb) eyebrow(s, eb, { x, y: 0.24, w: 9, h: 0.24, fontSize: ebSize })
+  if (eb) eyebrow(s, kit.eyebrow || eb, { x, y: 0.24, w: 9, h: 0.24, fontSize: ebSize })
   georgia(s, title, { x, y: 0.40, w: 9.2, h: 0.55, fontSize: titleSize, valign: 'middle' })
   if (rule === 'gold') hline(s, pptx, x, 1.28, 1.2, B.gold, 1.5)
   else if (rule === 'full') hline(s, pptx, x, 1.28, 9.0, B.rule, 1)
@@ -88,6 +91,7 @@ export const linesFor = (t, size, w) => Math.max(1, Math.ceil(String(t || '').le
 
 // ───────────────────────── shared slides ─────────────────────────
 export function coverOld(pptx, logo, title, coupleLabel, date) {
+  kit.next = { ...(kit.next || {}), noLogo: true }
   const s = base(pptx, { bar: false, foot: false })
   rect(s, pptx, 0, 0.41, 0.06, 4.27, B.navy)
   footer(s, pptx)
@@ -101,6 +105,7 @@ export function coverOld(pptx, logo, title, coupleLabel, date) {
 export const ordinalDate = (d) => { if (!d) return ''; const t = new Date(`${d}T00:00:00`); const n = t.getDate(), sfx = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'; return `${t.toLocaleDateString('en-US', { month: 'long' })} ${n}${sfx}, ${t.getFullYear()}` }
 // Updated cover: smaller logo, Georgia 27.6 title, taupe tagline, "Presented | date".
 export function cover(pptx, logo, title, coupleLabel, date) {
+  kit.next = { ...(kit.next || {}), noLogo: true }
   const s = base(pptx, { bar: false, bg: B.white })
   rect(s, pptx, 0.26, 0.68, 0.05, 4.12, '171738')
   if (logo) s.addImage({ data: logo, x: 7.52, y: 0.41, w: 2.02, h: 0.59 })
@@ -160,7 +165,7 @@ export function processSlide(pptx, current) {
   header(s, pptx, 'Our Process', 'Family Capital Architecture', { rule: 'none' })
   s.addShape(pptx.ShapeType.line, { x: 0.45, y: 1.355, w: 9.10, h: 0, line: { color: B.gold, width: 2.5, endArrowType: 'triangle' } })
   vline(s, pptx, 3.45, 1.10, 0.48, B.gold, 2); vline(s, pptx, 6.63, 1.13, 0.48, B.gold, 2)
-  const steps = [['01', ['Family Capital', 'Assessment'], current === 1 ? "Today's session — mapping the current state of your family and capital." : 'Mapping the current state of your family and capital.'], ['02', ['Family Capital', 'Gap Analysis'], current === 2 ? "Today's session — the deep diagnostic identifying gaps between where you are and where you should be." : 'Deep diagnostic identifying gaps between where you are and where you should be.'], ['03', ['Family Capital', 'Blueprint'], 'Your comprehensive multi-generational wealth and legacy roadmap.']]
+  const steps = [['01', ['Family Capital', 'Assessment'], current === 1 ? "Today's session — mapping the current state of your family and capital." : 'Mapping the current state of your family and capital.'], ['02', ['Family Capital', 'Gap Analysis'], 'Deep diagnostic identifying gaps between where you are and where you should be.'], ['03', ['Family Capital', 'Blueprint'], 'Your comprehensive multi-generational wealth and legacy roadmap.']]
   steps.forEach(([n, t, d], i) => {
     const x = [0.45, 3.60, 6.75][i], y = 1.58, w = 2.90, h = 3.28, active = current === i + 1, tx = x + 0.20
     rect(s, pptx, x, y, w, h, active ? B.bg : B.tile2, { color: active ? B.navy : B.tileBorder, width: 0.5 })
@@ -169,7 +174,7 @@ export function processSlide(pptx, current) {
     T(s, t[0], tx, 2.36, 2.6, { fontFace: H, fontSize: 13, color: B.navy }); T(s, t[1], tx, 2.63, 2.6, { fontFace: H, fontSize: 13, color: B.navy })
     hline(s, pptx, tx, 2.98, 2.5, B.rule, 0.4)
     s.addText(d, { x: tx, y: 3.01, w: 2.5, h: 1.1, margin: 0, valign: 'middle', fontFace: F, fontSize: 11, color: B.text, lineSpacing: 18.4 })
-    const tag = active ? 'Today' : i + 1 < current ? 'Previous' : i === 1 ? 'Potential next step' : 'The outcome'
+    const tag = active ? 'Today' : i + 1 < current ? 'Previous' : i + 1 === current + 1 ? 'Potential next step' : 'The outcome'
     T(s, tag.toUpperCase(), tx, 4.41, 2.6, { fontSize: 10.6, color: B.gold, charSpacing: 2.6 })
   })
 }
@@ -330,9 +335,10 @@ export function proposedOwnership(pptx, a, familyName) {
   georgia(s, '100%', { x: cx[2], y: ty, w: cw[2], h: 0.35, fontSize: 12, bold: true, align: 'right', valign: 'middle' })
   georgia(s, total ? fmtUsd(total) : '', { x: cx[3] - 0.2, y: ty, w: cw[3] + 0.2, h: 0.35, fontSize: 12, bold: true, align: 'right', valign: 'middle' })
 }
-export function cashNeeds(pptx, a) {
+export function cashNeeds(pptx, a, { eyebrow: eb } = {}) {
   const s = pptx.addSlide(); s.background = { color: B.white }
-  footer(s, pptx)
+  footer(s, pptx); addLogo(s)
+  if (eb) eyebrow(s, eb, { x: 0.60, y: 0.27, w: 6, h: 0.2, fontSize: 9 })
   T(s, '5 Year Cash Needs', 0.60, 0.83, 6, { fontFace: H, fontSize: 28, color: '1C1D32' })
   rect(s, pptx, 0.50, 1.45, 1.40, 0.03, 'B2A26F')
   const retire = num(a.retirementCashNeed), base0 = retire || num(a.incomeAmount) * (a.incomeUnit === '/ mo' ? 12 : 1), g = a.cashGrowthPct === '' || a.cashGrowthPct == null ? 0 : num(a.cashGrowthPct)
@@ -557,10 +563,16 @@ export function pathForward(pptx, steps, variant = 'over5') {
     if (i < steps.length - 1) hline(s, pptx, 1.25, y + 0.68, 7.4, B.rule, 0.75)
   })
 }
-export function divider(pptx, lines) {
+export function divider(pptx, lines, eb) {
   const s = base(pptx, { navy: true, bar: false })
   const arr = Array.isArray(lines) ? lines : String(lines).split('\n')
   const top = arr.length > 1 ? 1.93 : 2.25
+  if (eb) { // section divider with a small gold eyebrow: one 28.5pt line (the Gap Analysis+ reference)
+    eyebrow(s, eb, { x: 0.675, y: 2.06, w: 8, h: 0.22, fontSize: 7.5, charSpacing: 4 })
+    georgia(s, arr.join(' '), { x: 0.675, y: 2.33, w: 8.6, h: 0.68, fontSize: 28.5, color: B.white, valign: 'middle' })
+    hline(s, pptx, 0.675, 3.11, 0.83, B.gold, 2.5)
+    return
+  }
   arr.forEach((t, i) => georgia(s, t, { x: 1.13, y: top + i * 0.72, w: 8.5, h: 0.72, fontSize: 39, color: B.white, valign: 'middle' }))
   hline(s, pptx, 1.12, top + arr.length * 0.72 + 0.28, 1.35, B.gold, 2.5)
 }

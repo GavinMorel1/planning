@@ -5,8 +5,10 @@ import { familyContext } from '../lib/context'
 import { TOOLS, TIERS, toolById, tierRank } from '../data/tools'
 import { Card, Eyebrow, Title, Btn, Pill, Grid, Row, Note, Empty, Stat, TextArea, Input, Field, Select, SectionLabel } from '../components/ui'
 import { fmtUsd, num, uid } from '../lib/util'
+import GoalsImport from '../components/GoalsImport'
+import { blendedAumRate, DEFAULT_FEE_SCHEDULE } from '../lib/fees'
 
-export default function GapAnalysis({ C, isDesktop, setTab }) {
+export default function GapAnalysis({ C, isDesktop, setTab, onBuild }) {
   const { settings } = useStore()
   const [f, patch] = useFamily()
   const goals = f.goals || []
@@ -46,14 +48,16 @@ export default function GapAnalysis({ C, isDesktop, setTab }) {
 
   if (!goals.length) return (
     <div>
-      <Title C={C} isDesktop={isDesktop}>Gap Analysis · {f.name}</Title>
-      <Empty C={C} icon="◫" title="No goals yet" action={<Btn C={C} primary onClick={() => setTab('families')}>Enter goals in Families</Btn>}>The Gap Analysis works goal by goal: what they said they want, what the current plan does, what it costs to stay put, and which tools close the gap.</Empty>
+      <Title C={C} isDesktop={isDesktop}>Family Capital Gap Analysis · {f.name}</Title>
+      <GoalsImport C={C} />
+      <Empty C={C} icon="◫" title="No goals yet" action={<Btn C={C} onClick={() => setTab('families')}>Type goals in Families</Btn>}>The Gap Analysis works goal by goal: what they said they want, what the current plan does, what it costs to stay put, and which tools close the gap. Upload the Goals and Intentions document above and each goal gets its own slide.</Empty>
     </div>
   )
 
   return (
     <div>
-      <Title C={C} isDesktop={isDesktop} sub="Goal by goal: observations, potential challenges, cost of inaction and the tools that close the gap." right={<><Btn C={C} onClick={() => setTab('priorities')}>Priorities</Btn><Btn C={C} primary onClick={() => setTab('presentations')}>Build deck</Btn></>}>Gap Analysis · {f.name}</Title>
+      <Title C={C} isDesktop={isDesktop} sub="Goal by goal: observations, potential challenges, cost of inaction and the tools that close the gap." right={<><Btn C={C} onClick={() => setTab('priorities')}>Priorities</Btn>{onBuild && <Btn C={C} primary onClick={onBuild}>Download .pptx</Btn>}</>}>Family Capital Gap Analysis · {f.name}</Title>
+      <GoalsImport C={C} compact />
       <Grid cols={isDesktop ? 4 : 2} gap={10} style={{ marginBottom: 14 }}>
         <Stat C={C} label="Total goals" value={goals.length} />
         <Stat C={C} label="Goals met" value={met} color={C.up} sub="Current plan status" />
@@ -71,6 +75,12 @@ export default function GapAnalysis({ C, isDesktop, setTab }) {
           <Card C={C} style={{ marginTop: 10 }}>
             <Eyebrow C={C}>Deck extras</Eyebrow>
             <Field C={C} label="What's top of mind? (closing slide notes)"><TextArea C={C} rows={3} value={f.gapMeta?.topOfMind} onChange={(v) => patch({ gapMeta: { ...(f.gapMeta || {}), topOfMind: v } })} /></Field>
+          </Card>
+          <Card C={C} style={{ marginTop: 10 }}>
+            <Eyebrow C={C}>Cover and fees</Eyebrow>
+            <Field C={C} label="Name line on the cover" hint="Blank uses the names on the profile"><Input C={C} value={f.gapMeta?.coverName} onChange={(v) => patch({ gapMeta: { ...(f.gapMeta || {}), coverName: v } })} placeholder="Joshua & Deborah Fookes" /></Field>
+            <Field C={C} label="Assets under management for the fee slide ($)" hint="Blank leaves the Our Fees slide out" style={{ marginTop: 10 }}><Input C={C} value={f.gapMeta?.feeAum} onChange={(v) => patch({ gapMeta: { ...(f.gapMeta || {}), feeAum: v } })} placeholder="1278290" /></Field>
+            {num(f.gapMeta?.feeAum) > 0 && <div style={{ fontSize: 12, color: C.t3, marginTop: 6 }}>Total fee {(blendedAumRate(num(f.gapMeta.feeAum), settings.feeSchedule || DEFAULT_FEE_SCHEDULE) + (settings.feeSchedule?.expenseRatio ?? 0.05)).toFixed(2)}% including the {(settings.feeSchedule?.expenseRatio ?? 0.05).toFixed(2)}% expense ratio. The schedule is edited in Settings.</div>}
           </Card>
         </div>
         {g && (

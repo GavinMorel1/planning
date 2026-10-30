@@ -142,3 +142,39 @@ export async function writeNarrative({ familyName, facts, tone = 'warm, plain-En
   const d = await messages({ max_tokens: 2000, system: SYSTEM, messages: [{ role: 'user', content: prompt }] })
   return textOf(d).trim()
 }
+
+// ─── Goals and Intentions document → one entry per goal (each becomes its own slide) ───
+const GOALS_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['goals', 'couple_names', 'notes'],
+  properties: {
+    couple_names: { type: 'string', description: 'The clients\' names as written on the document, or an empty string' },
+    goals: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['text', 'title', 'page', 'confidence'], properties: {
+      text: { type: 'string', description: 'The goal or intention in the clients\' own wording, one goal only, as a single sentence or phrase. Fix obvious typos only.' },
+      title: { type: 'string', description: 'A 2 to 5 word label for the goal, for example "Emergency reserves" or "Charitable giving"' },
+      page: { type: ['integer', 'null'], description: 'Page of the document the goal appears on, or null' },
+      confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'low when the text was hard to read or you are unsure it is a goal' },
+    } } },
+    notes: { type: 'string', description: 'Anything the planner should check, for example an unreadable section. Empty string when nothing.' },
+  },
+}
+export const GOALS_ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.txt,.docx'
+export async function extractGoals(file, { familyName } = {}) {
+  if (file.size > INTAKE_MAX_BYTES) throw new Error(`${file.name} is larger than ${INTAKE_MAX_BYTES / 1024 / 1024} MB.`)
+  const name = file.name
+  const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(name)
+  const isImage = /^image\//.test(file.type) || /\.(png|jpe?g|webp)$/i.test(name)
+  if (/\.docx$/i.test(name)) throw new Error('Word files are not read directly. Save it as a PDF and upload that, or paste the goals instead.')
+  const content = []
+  if (isPdf) content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: await fileToBase64(file) }, title: name })
+  else if (isImage) content.push({ type: 'image', source: { type: 'base64', media_type: file.type || 'image/png', data: await fileToBase64(file) } })
+  else content.push({ type: 'text', text: `FILE ${name}:\n${(await file.text()).slice(0, 120000)}` })
+  content.push({ type: 'text', text: `This is the "Goals and Intentions" document for ${familyName || 'a client family'}. List every separate goal or intention the clients wrote, in document order, one entry each.\nRules: keep their wording; do not merge two goals or split one goal; do not add goals that are not on the page; skip headings, instructions, page numbers and signatures; never invent dollar amounts. Return the JSON only.` })
+  const d = await messages({ max_tokens: 8000, system: `${SYSTEM}\n\nYou are transcribing a client document exactly. Accuracy over completeness: if something is unreadable, say so in notes.`, output_config: { format: { type: 'json_schema', schema: GOALS_SCHEMA } }, messages: [{ role: 'user', content }] })
+  const out = jsonOf(d)
+  return { ...out, source_file: name }
+}
+
+/** Split pasted text into goals: one per line, bullets and numbering removed. */
+export function goalsFromText(text) {
+  return String(text || '').split(/\r?\n/).map((l) => l.replace(/^[\s•▪■\-*\d.)✓×]+/, '').trim()).filter((l) => l.length > 2).map((t) => ({ text: t, title: '', page: null, confidence: 'high' }))
+}
