@@ -30,6 +30,18 @@ export function newFamily(name = 'New Family') {
   }
 }
 
+// Supabase can reject a brand-new login token with "JWT issued at future" when its API node's clock is a few seconds behind the
+// auth node's. It clears by itself, so retry briefly instead of dropping the save or showing a red banner.
+const CLOCK_SKEW = /JWT issued at future|issued in the future|clock skew/i
+async function retrySkew(run, tries = 4) {
+  let res = await run()
+  for (let i = 1; i < tries && res?.error && CLOCK_SKEW.test(res.error.message || ''); i++) {
+    await new Promise((r) => setTimeout(r, 1500 * i))
+    res = await run()
+  }
+  return res
+}
+
 function loadLocal() {
   try { const s = localStorage.getItem(LS_KEY); if (s) return JSON.parse(s) } catch {}
   return { families: [], settings: DEFAULT_SETTINGS, activeFamilyId: null }
@@ -48,8 +60,8 @@ export function StoreProvider({ children }) {
     ;(async () => {
       try {
         const [{ data: fams, error: e1 }, { data: sets, error: e2 }] = await Promise.all([
-          supabase.from('families').select('id,data').order('updated_at', { ascending: false }),
-          supabase.from('settings').select('key,data'),
+          retrySkew(() => supabase.from('families').select('id,data').order('updated_at', { ascending: false })),
+          retrySkew(() => supabase.from('settings').select('key,data')),
         ])
         if (e1) throw e1; if (e2) throw e2
         if (cancel) return
@@ -84,7 +96,7 @@ export function StoreProvider({ children }) {
     clearTimeout(saveTimers.current[fam.id])
     saveTimers.current[fam.id] = setTimeout(async () => {
       const { id, ...data } = fam
-      const { error } = await supabase.from('families').upsert({ id, data: { ...data, id }, updated_at: fam.updatedAt })
+      const { error } = await retrySkew(() => supabase.from('families').upsert({ id, data: { ...data, id }, updated_at: fam.updatedAt }))
       setSyncErr(error ? error.message : '')
     }, 600)
   }, [])
@@ -92,7 +104,7 @@ export function StoreProvider({ children }) {
     if (!SUPABASE_ENABLED) return
     clearTimeout(saveTimers.current.__settings)
     saveTimers.current.__settings = setTimeout(async () => {
-      const { error } = await supabase.from('settings').upsert({ key: 'app', data: settings })
+      const { error } = await retrySkew(() => supabase.from('settings').upsert({ key: 'app', data: settings }))
       setSyncErr(error ? error.message : '')
     }, 600)
   }, [])
