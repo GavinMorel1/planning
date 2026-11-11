@@ -58,8 +58,15 @@ export function useTeam() {
   const members = SUPABASE_ENABLED ? s.members : (me ? [{ email: me, name: 'You', title: '', role: 'admin' }] : [])
   const reload = useCallback(() => loadTeam(true), [])
   const guard = (r) => { if (r.error) throw new Error(r.error.message); return reload() }
-  const add = useCallback(async ({ email: em, name, title, role }) => guard(await supabase.from('app_roles').upsert({ email: em.trim().toLowerCase(), role, name: (name || '').trim() || null, title: (title || '').trim() || null, created_by: me })), [me]) // eslint-disable-line react-hooks/exhaustive-deps
-  const update = useCallback(async (em, patch) => guard(await supabase.from('app_roles').update(patch).eq('email', em)), []) // eslint-disable-line react-hooks/exhaustive-deps
+  const NO_COLS = /'(name|title)' column|schema cache/i
+  // Without the team-access migration the table has no name/title columns: save the person anyway and tell the Admin what to run.
+  const add = useCallback(async ({ email: em, name, title, role }) => {
+    const row = { email: em.trim().toLowerCase(), role, created_by: me }
+    let r = await supabase.from('app_roles').upsert({ ...row, name: (name || '').trim() || null, title: (title || '').trim() || null })
+    if (r.error && NO_COLS.test(r.error.message)) { r = await supabase.from('app_roles').upsert(row); if (!r.error) { await reload(); throw new Error('Added, but names and titles were not saved: run supabase/migrations/20261111_team_access.sql in the Supabase SQL Editor.') } }
+    return guard(r)
+  }, [me]) // eslint-disable-line react-hooks/exhaustive-deps
+  const update = useCallback(async (em, patch) => { const r = await supabase.from('app_roles').update(patch).eq('email', em); if (r.error && NO_COLS.test(r.error.message)) throw new Error('Names and titles need the team-access SQL: run supabase/migrations/20261111_team_access.sql in the Supabase SQL Editor.'); return guard(r) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const remove = useCallback(async (em) => guard(await supabase.from('app_roles').delete().eq('email', em)), []) // eslint-disable-line react-hooks/exhaustive-deps
   const pending = useCallback(async () => { const { data, error } = await supabase.rpc('pending_signups'); if (error) throw new Error(error.message); return data || [] }, [])
   return { members, ready: s.ready, missing: s.missing, error: s.error, reload, add, update, remove, pending, me }

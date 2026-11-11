@@ -248,3 +248,6 @@ on conflict (email) do update set role = 'admin', name = coalesce(public.app_rol
 --   select lower(u.email), 'planning', 'grandfathered' from auth.users u
 --   where u.email is not null and lower(u.email) <> 'gavin.morel@paradiem.org'
 --   on conflict (email) do nothing;
+
+-- Make the API pick up the new columns and functions right away.
+notify pgrst, 'reload schema';
