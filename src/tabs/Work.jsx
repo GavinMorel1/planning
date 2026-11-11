@@ -11,6 +11,8 @@ import {
   buildTemplate, buildWorkflow, planToolImport, todayIso, addDays, isOverdue, isClosed, normSub, shortDate, relTime, nameFromEmail, initialsOf, ENGAGEMENT_TEMPLATE,
 } from '../lib/work'
 import { WORKFLOWS, WORKFLOW_BY_ID, workflowTaskCount } from '../data/workflows'
+import { useTeam, memberName, ownerDisplay } from '../lib/team'
+import WorkByPerson from './WorkByPerson'
 
 const COLS = '30px minmax(190px,1fr) 112px 124px 104px 80px 48px 96px'
 const VIEW_KEY = 'planning_work_view'
@@ -36,10 +38,44 @@ function workflowGroups(projects, tasks) {
   return Object.values(map).sort((a, b) => WF_ORDER.indexOf(a.key) - WF_ORDER.indexOf(b.key))
 }
 
+const SCOPE_KEY = 'planning_work_scope'
+// Work has two views of the same tasks: one family at a time (projects, board, files) or one person at a time (everything a
+// team member has to finish, across every family).
 export default function Work(props) {
+  const { C, isDesktop, setTab } = props
   const [f] = useFamily()
-  if (!f) return null
-  return <WorkInner key={f.id} f={f} {...props} />
+  const { setActive } = useStore()
+  const [scope, setScopeState] = useState(() => { try { return localStorage.getItem(SCOPE_KEY) === 'person' ? 'person' : 'family' } catch { return 'family' } })
+  const setScope = (v) => { setScopeState(v); try { localStorage.setItem(SCOPE_KEY, v) } catch { /* ignore */ } }
+  useEffect(() => { const h = () => setScopeState('person'); window.addEventListener('planning:work-person', h); return () => window.removeEventListener('planning:work-person', h) }, [])
+  const openTask = (familyId, taskId) => { try { sessionStorage.setItem('planning_work_open', taskId) } catch { /* ignore */ } setActive(familyId); setScope('family') }
+  const toggle = (
+    <div style={{ display: 'inline-flex', border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
+      {[['family', 'By family'], ['person', 'By person']].map(([id, l]) => <button key={id} onClick={() => setScope(id)} style={{ padding: '8px 16px', border: 'none', background: scope === id ? C.accentSoft : 'transparent', color: scope === id ? C.t1 : C.t3, fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', boxShadow: scope === id ? `inset 0 -2px 0 ${C.accent}` : 'none' }}>{l}</button>)}
+    </div>
+  )
+  if (scope === 'person') {
+    return (
+      <div>
+        <Title C={C} isDesktop={isDesktop} sub="Each team member's open work across every family. Click Open on a task to edit it in its family.">Work · By person</Title>
+        {toggle}
+        <WorkByPerson C={C} isDesktop={isDesktop} openTask={openTask} />
+      </div>
+    )
+  }
+  if (!f) {
+    return (
+      <div>
+        {toggle}
+        <div style={{ textAlign: 'center', padding: '50px 20px', color: C.t4 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.t3, marginBottom: 6 }}>Pick a family first</div>
+          <div style={{ fontSize: 12.5, marginBottom: 16 }}>Choose a family at the top to see its projects and tasks, or switch to By person to see each team member's work across all families.</div>
+          <Btn C={C} primary onClick={() => setTab('families')}>Go to Families</Btn>
+        </div>
+      </div>
+    )
+  }
+  return <div>{toggle}<WorkInner key={f.id} f={f} {...props} /></div>
 }
 
 function WorkInner({ C, isDesktop, f }) {
@@ -55,7 +91,12 @@ function WorkInner({ C, isDesktop, f }) {
   const tasks = useMemo(() => { if (wfActive === 'all') return allTasks; const ids = new Set(projects.map((p) => p.id)); return allTasks.filter((t) => ids.has(t.projectId)) }, [allTasks, projects, wfActive])
   const me = String(email || '').toLowerCase()
   const roster = useMemo(() => (settings.roster || []).filter((p) => p.name), [settings.roster])
-  const ownerOptions = useMemo(() => [{ value: '', label: 'Unassigned' }, ...(me ? [{ value: me, label: `Me (${me})` }] : []), ...roster.map((p) => ({ value: p.name, label: p.name }))], [roster, me])
+  const { members } = useTeam()
+  const ownerOptions = useMemo(() => {
+    const people = members.filter((m) => m.email !== me).map((m) => ({ value: m.email, label: memberName(m) }))
+    const names = new Set(members.map((m) => (m.name || '').trim().toLowerCase()).filter(Boolean))
+    return [{ value: '', label: 'Unassigned' }, ...(me ? [{ value: me, label: `Me (${memberName(members.find((m) => m.email === me) || { email: me })})` }] : []), ...people, ...roster.filter((p) => !names.has(p.name.trim().toLowerCase())).map((p) => ({ value: p.name, label: p.name }))]
+  }, [roster, me, members])
   const [view, setViewState] = useState(() => { try { return localStorage.getItem(VIEW_KEY) === 'board' ? 'board' : 'table' } catch { return 'table' } })
   const setView = (v) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* ignore */ } }
   const [tab, setTabState] = useState(() => { try { return localStorage.getItem(TAB_KEY) === 'done' ? 'done' : 'open' } catch { return 'open' } })
@@ -119,6 +160,12 @@ function WorkInner({ C, isDesktop, f }) {
   const openTask = allTasks.find((t) => t.id === openId) || null
   const selIds = useMemo(() => tasks.filter((t) => sel.has(t.id)).map((t) => t.id), [tasks, sel])
   useEffect(() => { if (openId && !openTask && W.ready) setOpenId(null) }, [openId, openTask, W.ready])
+  useEffect(() => { // "Open" on a task in Work > By person lands here with that task opened
+    if (!W.ready) return
+    let want = null
+    try { want = sessionStorage.getItem('planning_work_open'); if (want) sessionStorage.removeItem('planning_work_open') } catch { /* ignore */ }
+    if (want && allTasks.some((t) => t.id === want)) setOpenId(want)
+  }, [W.ready]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ownerFilterOptions = useMemo(() => {
     const extra = [...new Set(tasks.map((t) => t.owner).filter((o) => o && !ownerOptions.some((x) => x.value === o)))].map((o) => ({ value: o, label: o }))
@@ -388,10 +435,10 @@ function Avatar({ C, owner, roster, size = 24 }) {
   const base = { width: size, height: size, borderRadius: '50%', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.4), fontWeight: 800 }
   if (!owner) return <span style={{ ...base, border: `1px dashed ${C.t4}`, color: C.t4 }}>+</span>
   if (photo) return <img src={photo} alt="" style={{ ...base, objectFit: 'cover', objectPosition: 'top', background: C.surface, border: `1px solid ${C.borderActive}` }} />
-  return <span style={{ ...base, background: C.accentSoft, border: `1px solid ${C.borderActive}`, color: C.t1 }}>{initialsOf(owner)}</span>
+  return <span style={{ ...base, background: C.accentSoft, border: `1px solid ${C.borderActive}`, color: C.t1 }}>{initialsOf(ownerDisplay(owner))}</span>
 }
 
-const ownerLabel = (o, me) => (!o ? 'Unassigned' : String(o).toLowerCase() === me ? 'Me' : String(o).includes('@') ? nameFromEmail(o) : o)
+const ownerLabel = (o, me) => (!o ? 'Unassigned' : String(o).toLowerCase() === me ? 'Me' : ownerDisplay(o))
 
 function OwnerSelect({ C, value, onChange, ownerOptions, roster, me, showName = true, label = 'Owner' }) {
   const opts = value && !ownerOptions.some((o) => o.value === value) ? [...ownerOptions, { value, label: value }] : ownerOptions

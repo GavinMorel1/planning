@@ -33,7 +33,7 @@ const ALLOW_HEADERS = 'Content-Type, Authorization, anthropic-version, anthropic
 
 /** Per-isolate mutable state (caches + fallback rate limiter). Tests pass their own via deps.state. */
 export function createState() {
-  return { jwks: null, jwksAt: 0, jwksTriedAt: 0, users: new Map(), buckets: new Map() }
+  return { jwks: null, jwksAt: 0, jwksTriedAt: 0, users: new Map(), roles: new Map(), buckets: new Map() }
 }
 const sharedState = createState()
 
@@ -176,6 +176,28 @@ export async function authenticate(request, cfg, state, fetchFn, now) {
   return verifyViaUserEndpoint(token, cfg, state, fetchFn, now)
 }
 
+// ───────────────────────── team membership ─────────────────────────
+// Only people on the My Team list may spend Anthropic credit. Ask the database (as the caller, so row-level security applies):
+// current_role_name() is 'none' for a signed-in account that is not on the team. A project without that function (migration
+// 20261111_team_access.sql not applied yet) answers 404 and is treated as "no team list", i.e. allowed.
+class TeamCheckError extends Error {}
+const ROLE_CACHE_TTL_MS = 60 * 1000
+async function teamRole(token, userId, cfg, state, fetchFn, now) {
+  if (!cfg.anonKey) return 'planning'
+  const hit = state.roles.get(userId)
+  if (hit && hit.until > now) return hit.role
+  let r
+  try { r = await fetchFn(`${cfg.supabase}/rest/v1/rpc/current_role_name`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, apikey: cfg.anonKey, 'Content-Type': 'application/json', Accept: 'application/json' }, body: '{}' }) }
+  catch { throw new TeamCheckError() }
+  let role
+  if (r.status === 404) role = 'planning'
+  else if (!r.ok) throw new TeamCheckError()
+  else { const v = await r.json().catch(() => null); if (typeof v !== 'string' || !v) throw new TeamCheckError(); role = v }
+  if (state.roles.size > 2000) state.roles.clear()
+  state.roles.set(userId, { role, until: now + ROLE_CACHE_TTL_MS })
+  return role
+}
+
 // ───────────────────────── rate limiting ─────────────────────────
 async function rateLimit(env, cfg, state, userId, now) {
   if (env.RATE_LIMITER && typeof env.RATE_LIMITER.limit === 'function') {
@@ -295,6 +317,15 @@ export async function handle(request, env = {}, deps = {}) {
   try { user = await authenticate(request, cfg, state, fetchFn, now) }
   catch (e) { return fail(401, e instanceof AuthError ? e.message : 'invalid token', { 'WWW-Authenticate': 'Bearer' }, 'auth') }
   log.user = user.id
+
+  // 4b. must be on the My Team list
+  try {
+    const token = /^Bearer\s+(\S+)$/.exec((request.headers.get('Authorization') || '').trim())[1]
+    if ((await teamRole(token, user.id, cfg, state, fetchFn, now)) === 'none') return fail(403, 'this account is not on the team; ask an Admin to add it in My Team', undefined, 'not_on_team')
+  } catch (e) {
+    if (e instanceof TeamCheckError) return fail(503, 'could not check team access, try again shortly', { 'Retry-After': '5' }, 'team_check_failed')
+    throw e
+  }
 
   // 5. rate limit
   const wait = await rateLimit(env, cfg, state, user.id, now)

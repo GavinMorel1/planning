@@ -62,6 +62,10 @@ Day to day:
 - **Limits:** each signed-in user gets about 20 Claude calls per minute, requests over 25 MB are refused, and only the Claude models listed in `ALLOWED_MODELS` are accepted. Change them in `wrangler.toml`, then `npx wrangler deploy`.
 - **Who can use it:** only people who can sign in to the app. Since anyone with an email can create an account behind the team passcode, treat the passcode as the gate and keep the Anthropic spend limit from step 1 in place.
 
+## 2b. Who can use the app (My Team)
+
+Run `supabase/ALL_PENDING_MIGRATIONS.sql` (it ends with the My Team section; the first Admin is `gavin.morel@paradiem.org`). From then on only people listed in the **My Team** tab can see any data. The Worker also checks the list, so **redeploy the Worker** (`wrangler deploy` in `worker/`) after this change; until you do, a removed person could still use Claude for up to the length of their login.
+
 ## 3. Cloudflare Pages — hosting (10 min)
 
 1. In the Cloudflare dashboard: **Workers & Pages → Create → Pages → Connect to Git**. Authorise GitHub and choose the `GavinMorel1/planning` repository. Private repositories are fine on the free plan.

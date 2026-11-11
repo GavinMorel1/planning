@@ -22,6 +22,7 @@ async function messages(body) {
   }
   const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model: MODEL, fallbacks: 'default', ...body }) })
   if (r.status === 401) throw new Error('Claude is not available: your login was not accepted by the Worker. Sign out and back in.')
+  if (r.status === 403) throw new Error('Claude is not available: this account is not on the team. Ask an Admin to add you in My Team.')
   if (r.status === 429) throw new Error('Too many Claude requests right now. Wait a minute and try again.')
   if (!r.ok) { const t = await r.text(); throw new Error(`Claude API ${r.status}: ${t.slice(0, 300)}`) }
   const d = await r.json()

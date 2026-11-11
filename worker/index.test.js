@@ -39,7 +39,7 @@ async function mint(over = {}, { alg = 'ES256', key, secret, kidOverride } = {})
 const okBody = { model: 'claude-opus-5', max_tokens: 1000, messages: [{ role: 'user', content: 'hi' }] }
 const upstreamOk = { id: 'msg_1', content: [{ type: 'text', text: 'hello' }], usage: { input_tokens: 11, output_tokens: 7 } }
 
-function makeFetch({ jwks = [jwk], userStatus = 200, upstream = () => new Response(JSON.stringify(upstreamOk), { status: 200, headers: { 'content-type': 'application/json' } }) } = {}) {
+function makeFetch({ jwks = [jwk], userStatus = 200, role = 'planning', roleStatus = 200, upstream = () => new Response(JSON.stringify(upstreamOk), { status: 200, headers: { 'content-type': 'application/json' } }) } = {}) {
   const fn = vi.fn(async (url, init) => {
     url = String(url)
     if (url === `${SUPABASE}/auth/v1/.well-known/jwks.json`) return new Response(JSON.stringify({ keys: jwks }), { status: 200 })
@@ -48,6 +48,7 @@ function makeFetch({ jwks = [jwk], userStatus = 200, upstream = () => new Respon
         ? new Response(JSON.stringify({ id: 'user-from-api', email: 'u@paradiem.org' }), { status: 200 })
         : new Response('{"msg":"invalid"}', { status: userStatus })
     }
+    if (url === `${SUPABASE}/rest/v1/rpc/current_role_name`) return roleStatus === 200 ? new Response(JSON.stringify(role), { status: 200 }) : new Response('{}', { status: roleStatus })
     if (url === 'https://api.anthropic.com/v1/messages') return upstream(url, init)
     throw new Error('unexpected fetch ' + url)
   })
@@ -72,6 +73,39 @@ async function call({ token, body = okBody, headers = {}, origin = ORIGIN, metho
 let logSpy
 beforeEach(() => { logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) })
 afterEach(() => { vi.restoreAllMocks() })
+
+describe('team membership', () => {
+  const roleCalls = (f) => f.mock.calls.filter(([u]) => String(u).endsWith('/rest/v1/rpc/current_role_name'))
+  it('refuses a signed-in account that is not on the team, and never calls Anthropic', async () => {
+    const { res, fetchFn } = await call({ token: await mint(), fetchFn: makeFetch({ role: 'none' }) })
+    expect(res.status).toBe(403)
+    expect(upstreamCalls(fetchFn)).toHaveLength(0)
+  })
+  it('lets every team role through, asking the database as the caller', async () => {
+    for (const role of ['admin', 'planning', 'rm']) {
+      const token = await mint()
+      const { res, fetchFn } = await call({ token, fetchFn: makeFetch({ role }) })
+      expect(res.status).toBe(200)
+      const [, init] = roleCalls(fetchFn)[0]
+      expect(init.headers.Authorization).toBe(`Bearer ${token}`)
+      expect(init.headers.apikey).toBe('anon-key')
+    }
+  })
+  it('caches the answer for a minute so one login does not hit the database on every call', async () => {
+    const state = createState(), fetchFn = makeFetch({ role: 'planning' }), token = await mint()
+    await call({ token, state, fetchFn }); await call({ token, state, fetchFn })
+    expect(roleCalls(fetchFn)).toHaveLength(1)
+  })
+  it('allows everyone when the database has no team function yet (migration not applied)', async () => {
+    const { res } = await call({ token: await mint(), fetchFn: makeFetch({ roleStatus: 404 }) })
+    expect(res.status).toBe(200)
+  })
+  it('fails closed with 503 when the team check itself errors', async () => {
+    const { res, fetchFn } = await call({ token: await mint(), fetchFn: makeFetch({ roleStatus: 500 }) })
+    expect(res.status).toBe(503)
+    expect(upstreamCalls(fetchFn)).toHaveLength(0)
+  })
+})
 
 describe('proxy happy path', () => {
   it('proxies a valid token with our key, not the client key, and returns CORS headers', async () => {

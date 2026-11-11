@@ -54,7 +54,7 @@ export function AuthGate({ children }) {
   return children
 }
 
-function Splash({ children }) {
+export function Splash({ children }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: NAVY, color: PARCHMENT, padding: 20, textAlign: 'center' }}>
       <div>{children}</div>
@@ -156,7 +156,7 @@ function SetNewPassword({ onDone, signOut }) {
 }
 
 const field = { width: '100%', padding: '12px', borderRadius: 10, border: '1px solid #d8d0bd', background: '#fff', color: NAVY, fontSize: 14, boxSizing: 'border-box', fontFamily: 'inherit' }
-const ghostBtn = { padding: '9px 18px', borderRadius: 10, border: `1px solid ${GOLD}`, background: 'transparent', color: PARCHMENT, fontSize: 13, cursor: 'pointer' }
+export const ghostBtn = { padding: '9px 18px', borderRadius: 10, border: `1px solid ${GOLD}`, background: 'transparent', color: PARCHMENT, fontSize: 13, cursor: 'pointer' }
 const linkBtn = { width: '100%', marginTop: 10, background: 'none', border: 'none', color: '#5b5b6b', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }
 function friendly(m = '') {
   if (/invalid login/i.test(m)) return 'Incorrect email or password.'
