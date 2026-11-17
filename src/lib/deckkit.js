@@ -53,7 +53,7 @@ export const arrow = (s, pptx, x, y, up, size = 0.19, outline) => s.addShape(up 
 
 // Footer strip: ONE style for every slide (measured from the updated Assessment): 0.34in strip #F1EEE6,
 // 7pt Calibri #8B7355, firm name left, Registered Investment Advisor line centred, confidentiality right.
-export const kit = { outlines: true, next: null, logoSmall: null, logoWhite: null, logoAll: false, eyebrow: null } // kit.eyebrow replaces the gold eyebrow on header() slides (the LTC annuity section)
+export const kit = { outlines: true, next: null, logoSmall: null, logoWhite: null, logoAll: false, logoBox: [8.5, 0.29, 1.16, 0.34], eyebrow: null } // kit.eyebrow replaces the gold eyebrow on header() slides (the LTC annuity section)
 export function footer(s, pptx) {
   rect(s, pptx, 0, 5.28, W, 0.34, 'F1EEE6')
   const t = (str, o) => s.addText(str, { y: 5.28, h: 0.34, fontFace: F, fontSize: 7, color: '8B7355', margin: 0, valign: 'middle', wrap: false, ...o })
@@ -62,7 +62,7 @@ export function footer(s, pptx) {
   t(COPY.footerRight, { x: 5.82, w: 4.0, align: 'right', charSpacing: 2.01 })
 }
 // Gap Analysis decks carry the small Paradiem logo (white on navy) on every content slide; kit.logoAll is switched on by those builders only.
-export function addLogo(s, navy) { if (!kit.logoAll) return; const lg = navy ? kit.logoWhite : kit.logoSmall; if (lg) s.addImage({ data: lg, x: 8.50, y: 0.29, w: 1.16, h: 0.34 }) }
+export function addLogo(s, navy) { if (!kit.logoAll) return; const lg = navy ? kit.logoWhite : kit.logoSmall; if (lg) s.addImage({ data: lg, x: kit.logoBox[0], y: kit.logoBox[1], w: kit.logoBox[2], h: kit.logoBox[3] }) }
 export const INVEST_FOOT = undefined // retained so older calls compile; every slide now uses the same footer
 export function base(pptx, { bg = B.bg, bar = true, foot = true, navy = false } = {}) {
   const ov = kit.next || {}; kit.next = null
@@ -143,10 +143,12 @@ export function framework(pptx, { tiles = true } = {}) {
     })
   }
 }
-export function twoKinds(pptx) {
+/** v2 (the updated Assessment decks): "Paradiem philosophy" eyebrow and the new right-hand statement. The Gap Analysis decks keep the original wording. */
+export function twoKinds(pptx, { v2 = false } = {}) {
   const s = base(pptx, { bar: false })
   rect(s, pptx, 0, 0, 4.60, 5.18, B.tile2, { color: B.navy, width: 0.75 })
-  eyebrow(s, 'Investment philosophy', { x: 0.28, y: 0.2, w: 4, h: 0.24, fontSize: 10 })
+  if (v2) rect(s, pptx, 0, 0, 0.06, 5.18, B.navy)
+  eyebrow(s, v2 ? 'Paradiem philosophy' : 'Investment philosophy', { x: 0.28, y: 0.2, w: 4, h: 0.24, fontSize: 10 })
   georgia(s, 'Two Kinds\nof Return', { x: 0.28, y: 0.48, w: 4, h: 1.15, fontSize: 28, lineSpacingMultiple: 1.1 })
   rect(s, pptx, 0.28, 1.72, 3.90, 1.00, B.tile, { color: B.tileBorder, width: 0.75 })
   eyebrow(s, 'Return on investment', { x: 0.42, y: 1.80, w: 3.6, h: 0.2, fontSize: 9 })
@@ -156,10 +158,77 @@ export function twoKinds(pptx) {
   eyebrow(s, 'Return on intention', { x: 0.42, y: 2.98, w: 3.6, h: 0.2, fontSize: 9 })
   georgia(s, 'Preparing the Family for the Money', { x: 0.42, y: 3.25, w: 3.6, h: 0.28, fontSize: 13, color: B.white })
   calibri(s, 'Where we go further.', { x: 0.42, y: 3.57, w: 3.6, h: 0.25, fontSize: 10, color: B.creamText })
-  georgia(s, 'You can have strong returns...', { x: 5.00, y: 1.53, w: 4.8, h: 0.4, fontSize: 20 })
-  georgia(s, 'and still fail your family long-term.', { x: 5.00, y: 1.96, w: 4.8, h: 0.4, fontSize: 20 })
+  if (v2) ['Strong financial returns don\'t', 'necessarily create the family future', 'you envision.'].forEach((t, k) => georgia(s, t, { x: 5.00, y: 1.31 + k * 0.435, w: 4.6, h: 0.4, fontSize: 20 }))
+  else { georgia(s, 'You can have strong returns...', { x: 5.00, y: 1.53, w: 4.8, h: 0.4, fontSize: 20 }); georgia(s, 'and still fail your family long-term.', { x: 5.00, y: 1.96, w: 4.8, h: 0.4, fontSize: 20 }) }
   hline(s, pptx, 5.00, 2.72, 3.5, B.navy, 1)
 }
+// ───────── "Future your family envisions" sequence (added to both Assessment decks, Nov 2026) ─────────
+// Measured from the updated reference PDFs (10 x 5.625 in). These four slides carry their own centred footer (italic RIA line).
+const NAVY2 = '171738', CARD = 'FAF7F2', CARD2 = 'F4EFE4', EDGE2 = 'E6E1D6', BRN = '8B7355'
+function altBase(pptx) {
+  kit.next = { ...(kit.next || {}), foot: false }
+  const s = base(pptx, { bg: B.white, bar: false })
+  rect(s, pptx, 0, 5.20, W, 0.42, CARD2)
+  const t = (str, o) => s.addText(str, { y: 5.20, h: 0.42, fontFace: F, fontSize: 7, color: BRN, margin: 0, valign: 'middle', wrap: false, ...o })
+  t(COPY.footerLeft, { x: 0.30, w: 4, charSpacing: 2.04 })
+  t(COPY.footerCenter, { x: 3.0, w: 4.0, align: 'center', italic: true, fontSize: 8 })
+  t(COPY.footerRight, { x: 5.82, w: 3.9, align: 'right', charSpacing: 2.01 })
+  return s
+}
+const bold10 = (s, str, x, y, o = {}) => eyebrow(s, str, { x, y: y - 0.03, w: 9, h: 0.22, fontSize: 10, bold: true, charSpacing: 3.2, color: BRN, ...o })
+const MID = '  ·  '
+const richLine = (s, runs, o) => s.addText(runs.map(([text, opt]) => ({ text, options: { fontFace: H, ...opt } })), { margin: 0, valign: 'top', wrap: false, ...o })
+
+export function futureEnvisions(pptx) {
+  const s = altBase(pptx)
+  bold10(s, 'The future your family envisions', 0.60, 0.33, { color: B.gold })
+  georgia(s, 'Are your financial priorities aligned with the', { x: 0.60, y: 0.55, w: 8.6, h: 0.5, fontSize: 28, color: NAVY2, valign: 'middle' })
+  richLine(s, [['future you ', { fontSize: 28, color: NAVY2 }], ['envision?', { fontSize: 28, color: B.gold, italic: true }]], { x: 0.60, y: 1.00, w: 8.6, h: 0.5 })
+  hline(s, pptx, 0.60, 1.62, 1.20, B.gold, 2)
+  bold10(s, ['Peace', 'Abundance', 'Impact'].join(MID).toUpperCase(), 0.60, 1.88)
+  rect(s, pptx, 0.60, 2.30, 8.80, 1.95, CARD, { color: EDGE2, width: 0.75 })
+  rect(s, pptx, 0.60, 2.30, 8.80, 0.07, NAVY2)
+  bold10(s, 'Without intention', 0.95, 2.66)
+  georgia(s, 'Chaos and Distraction', { x: 0.95, y: 2.86, w: 7, h: 0.42, fontSize: 18, color: NAVY2, valign: 'middle' })
+  hline(s, pptx, 0.95, 3.45, 8.10, B.mist, 0.75)
+  calibri(s, ['Fear', 'Scarcity', 'Protection'].join(MID), { x: 0.95, y: 3.60, w: 8, h: 0.3, fontSize: 14, fontFace: 'Calibri Light', color: '1C1713' })
+  s.addText('When immediate financial demands drive decisions, a family’s deeper priorities can gradually lose their influence.', { x: 0.60, y: 4.38, w: 8.8, h: 0.55, margin: 0, valign: 'top', fontFace: H, fontSize: 13, italic: true, color: NAVY2, lineSpacing: 15 })
+}
+
+export function misplacedPriorities(pptx) {
+  const s = altBase(pptx)
+  bold10(s, 'Misplaced priorities magnify missed possibilities', 0.60, 0.33, { color: B.gold })
+  rect(s, pptx, 0.60, 1.55, 0.06, 2.10, B.gold)
+  ;['The financial system has taught families how to', 'manage their wealth, but too often fails to help', 'them define what their wealth is meant to', 'accomplish.'].forEach((t, i) => georgia(s, t, { x: 0.95, y: 1.64 + i * 0.475, w: 8.4, h: 0.5, fontSize: 26, italic: true, color: NAVY2, valign: 'middle' }))
+}
+
+export function intentionCompare(pptx) {
+  const s = altBase(pptx)
+  bold10(s, 'Misplaced priorities magnify missed possibilities', 0.60, 0.33, { color: B.gold })
+  richLine(s, [['The Future Your Family ', { fontSize: 28, color: NAVY2 }], ['Envisions', { fontSize: 28, color: B.gold, italic: true }]], { x: 0.60, y: 0.50, w: 8.6, h: 0.6 })
+  hline(s, pptx, 0.60, 1.30, 1.20, B.gold, 2)
+  const cols = [[0.60, CARD, B.mist, 'Without intention', BRN, 'Chaos and Distraction', ['Fear', 'Scarcity', 'Protection']], [5.15, CARD2, NAVY2, 'With intention', B.gold, 'Alignment and Stewardship', ['Peace', 'Abundance', 'Impact']]]
+  cols.forEach(([x, fill, bar, label, lc, head, items]) => {
+    rect(s, pptx, x, 1.60, 4.25, 2.75, fill, { color: EDGE2, width: 0.75 })
+    rect(s, pptx, x, 1.60, 4.25, 0.07, bar)
+    bold10(s, label, x + 0.35, 1.96, { color: lc })
+    georgia(s, head, { x: x + 0.35, y: 2.14, w: 3.7, h: 0.42, fontSize: 18, color: NAVY2, valign: 'middle' })
+    hline(s, pptx, x + 0.35, 2.75, 3.55, B.mist, 0.75)
+    items.forEach((t, i) => calibri(s, t, { x: x + 0.35, y: 2.88 + i * 0.345, w: 3.4, h: 0.3, fontSize: 14, fontFace: 'Calibri Light', color: '1C1713' }))
+  })
+  s.addText('A shared 100-year vision gives financial decisions a purpose beyond financial performance.', { x: 0.60, y: 4.55, w: 8.8, h: 0.35, margin: 0, valign: 'top', fontFace: H, fontSize: 13, italic: true, color: NAVY2 })
+}
+
+export function possibilitiesOfAlignment(pptx) {
+  const s = altBase(pptx)
+  bold10(s, 'The possibilities of alignment', 0.60, 0.33, { color: B.gold })
+  georgia(s, 'What opportunities might become possible', { x: 0.5, y: 1.42, w: 9, h: 0.5, fontSize: 30, color: NAVY2, align: 'center', valign: 'middle' })
+  georgia(s, 'when we begin aligning financial decisions with', { x: 0.5, y: 1.95, w: 9, h: 0.5, fontSize: 30, color: NAVY2, align: 'center', valign: 'middle' })
+  georgia(s, 'what matters most to your family?', { x: 0.5, y: 2.47, w: 9, h: 0.5, fontSize: 30, color: B.gold, italic: true, align: 'center', valign: 'middle' })
+  hline(s, pptx, 4.40, 3.55, 1.20, B.gold, 2)
+  bold10(s, ['Peace', 'Abundance', 'Impact'].join(MID).toUpperCase(), 0.5, 3.85, { w: 9, align: 'center', color: NAVY2 })
+}
+
 export function processSlide(pptx, current) {
   const s = base(pptx, { bar: false })
   header(s, pptx, 'Our Process', 'Family Capital Architecture', { rule: 'none' })

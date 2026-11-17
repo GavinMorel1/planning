@@ -25,14 +25,20 @@ const {
 export const assessmentVariant = (f) => f.assessment?.variant || (f.tier === 'under5' ? 'under5' : 'over5')
 
 export async function buildAssessment(f, settings) {
-  kit.logoAll = false; kit.eyebrow = null; kit.logoSmall = null; kit.outlines = settings?.deckOutlines !== false
+  kit.eyebrow = null; kit.next = null; kit.outlines = settings?.deckOutlines !== false
+  const [small, white] = await Promise.all([asDataUrl('deck/paradiem-logo-small.png'), asDataUrl('deck/paradiem-logo-white.png')])
+  // The updated reference carries the small logo top right on every slide except the cover and the team pages.
+  kit.logoSmall = small; kit.logoWhite = white; kit.logoAll = true; kit.logoBox = [8.45, 0.28, 1.15, 0.33]
+  try { return await buildAssessmentDeck(f, settings) } finally { kit.logoAll = false; kit.logoBox = [8.5, 0.29, 1.16, 0.34]; kit.logoSmall = null }
+}
+
+async function buildAssessmentDeck(f, settings) {
   const pptx = new PptxGenJS()
   pptx.layout = 'LAYOUT_16x9'
   pptx.author = 'Paradiem'; pptx.company = 'Paradiem, LLC'; pptx.title = `Family Capital Assessment — ${f.name}`
   const variant = assessmentVariant(f)
   if (variant === 'under5') return buildAssessmentUnder5(pptx, f, settings)
-  const [logo, smallLogo] = await Promise.all([logoData(), asDataUrl('deck/paradiem-logo-small.png')])
-  kit.logoSmall = smallLogo
+  const logo = await logoData()
   const a = f.assessment || {}
   const fs = settings.feeSchedule || DEFAULT_FEE_SCHEDULE
   const nw = num(a.clarityNetWorth) || netWorthOf(f)
@@ -40,8 +46,10 @@ export async function buildAssessment(f, settings) {
   cover(pptx, logo, 'Family Capital Assessment', a.coverName || coupleName(f), a.date)
   disclosures(pptx)
   framework(pptx, { tiles: true })
-  twoKinds(pptx)
+  twoKinds(pptx, { v2: true })
+  K.futureEnvisions(pptx); K.misplacedPriorities(pptx); K.intentionCompare(pptx)
   processSlide(pptx, 1)
+  K.possibilitiesOfAlignment(pptx)
   U.numbers4(pptx, settings, a, f, nw, true)
   philosophy(pptx)
   principles(pptx)
@@ -49,7 +57,7 @@ export async function buildAssessment(f, settings) {
   U.lensCompare(pptx, a.scorecardCurrent, a.scorecard, true)
   if (num(a.currentAlloc?.stocks) + num(a.currentAlloc?.bonds) + num(a.currentAlloc?.cash) + num(a.currentAlloc?.other) > 0 || num(a.dividendPct) + num(a.growthPct) > 0) U.pies(pptx, a)
   perfTable(pptx, 'growth', settings.performance)
-  U.dividendStats(pptx, settings.performance)
+  U.dividendStats(pptx, settings.performance, { indent: true })
   U.ownership(pptx, a, f)
   cashNeeds(pptx, a)
   buyOption(pptx)
@@ -75,13 +83,14 @@ async function buildAssessmentUnder5(pptx, f, settings) {
   const fs = settings.feeSchedule || DEFAULT_FEE_SCHEDULE
   const nw = num(a.clarityNetWorth) || netWorthOf(f)
   const on = (k) => a.slides?.[k] !== false
-  kit.logoSmall = null
   const [icon, insp1, insp2] = await Promise.all([asDataUrl('deck/gold-bars.png'), asDataUrl('deck/inspire-insight.png'), asDataUrl('deck/bowyer-corporate-engagement.png')])
   K.coverOld(pptx, logo, 'Family Capital Assessment', a.coverName || coupleName(f), longDate(a.date))
   disclosures(pptx)
   framework(pptx, { tiles: false })
-  twoKinds(pptx)
+  twoKinds(pptx, { v2: true })
+  K.futureEnvisions(pptx); K.misplacedPriorities(pptx); K.intentionCompare(pptx)
   processSlide(pptx, 1)
+  K.possibilitiesOfAlignment(pptx)
   K.kit.next = { bg: 'FFFFFF', footLeft: INVEST_FOOT }; principles(pptx, 'under5')
   if (on('matthew25')) { U.matthew(pptx, 1, icon); U.matthew(pptx, 2, icon) }
   U.numbers4(pptx, settings, a, f, nw)

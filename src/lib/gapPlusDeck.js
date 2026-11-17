@@ -51,7 +51,7 @@ export async function buildGapPlus(f, settings, { model = null } = {}) {
     if (on('cashNeeds')) { P.cashNeedsOverview(pptx, baseA); K.cashNeeds(pptx, baseA, { eyebrow: 'Base plan' }) }
     if (on('buyOption')) K.buyOption(pptx)
     if (on('ownership')) K.proposedOwnership(pptx, a, f.name)
-    if (on('dividend')) U.dividendStats(pptx, settings.performance)
+    if (on('dividend')) U.dividendStats(pptx, settings.performance, { indent: true })
     if (on('growth')) K.perfTable(pptx, 'growth', settings.performance)
     if (on('audit') && hasAudit(a)) U.audit(pptx, a)
     if (on('lifeboat')) K.lifeboat(pptx, a, f.name)

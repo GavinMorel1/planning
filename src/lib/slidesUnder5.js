@@ -181,12 +181,12 @@ export function convictions(pptx, list) {
 }
 
 // ── 25 Stock Dividend Strategy: returns and risk statistics ───────────────────────────────
-export function dividendStats(pptx, perf) {
+export function dividendStats(pptx, perf, { indent = false } = {}) { // indent: the $5M+ reference starts the title right of a left margin mark
   const p = perf?.dividend; if (!p) return
   const s = whiteBase(pptx, { foot: true, footSize: 'sm' })
   eyebrow(s, 'Simplicity over complexity', { x: 0.19, y: 0.11, w: 5, h: 0.2, fontSize: 11, bold: true, color: GOLD2, charSpacing: 2.5 })
-  if (kit.logoSmall) s.addImage({ data: kit.logoSmall, x: 8.50, y: 0.29, w: 1.16, h: 0.34 })
-  T(s, `${p.name} Returns & Statistics`, kit.logoSmall ? 0.91 : 0.30, 0.32, 8, { fontFace: H, fontSize: 18, color: B.navy })
+  if (kit.logoSmall && !kit.logoAll) s.addImage({ data: kit.logoSmall, x: 8.50, y: 0.29, w: 1.16, h: 0.34 }) // base() already added it when logoAll is on
+  T(s, `${p.name} Returns & Statistics`, indent ? 0.91 : 0.30, 0.32, 8, { fontFace: H, fontSize: 18, color: B.navy })
   hline(s, pptx, 0, 0.65, 10, B.tileBorder, 0.5); hline(s, pptx, 0.35, 0.68, 0.85, B.gold, 1.5)
   const asOf = perf.asOf ? new Date(`${perf.asOf}T00:00:00`).toLocaleDateString('en-US') : ''
   T(s, `ANNUALISED RETURNS (AS OF ${asOf})`, 0.30, 0.75, 6, { fontSize: 10, color: B.text, charSpacing: 3 })
