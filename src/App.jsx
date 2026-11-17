@@ -47,7 +47,7 @@ function useMedia(q) {
 
 export default function App() {
   const store = useStore()
-  const { families, family, setActive, settings, updateSettings, syncErr, ready, mode } = store
+  const { families, family, setActive, settings, updateSettings, syncErr, ready, mode, reloadData } = store
   const { email, signOut, localMode } = useAuth()
   const isDesktop = useMedia('(min-width: 900px)')
   const { role } = useRole()
@@ -145,7 +145,7 @@ export default function App() {
 
         {role === 'rm' && <div style={{ padding: '8px 40px', fontSize: 12.5, fontWeight: 700, color: C.t1, background: C.accentSoft, borderBottom: `1px solid ${C.borderActive}` }}>Read-only access ({ROLE_LABELS.rm}): you can view everything and export decks and reports. Changes are not saved.</div>}
         {roNotice && <div role="status" style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 10020, padding: '10px 18px', borderRadius: 12, background: C.dn, color: '#fff', fontWeight: 700, fontSize: 13, boxShadow: '0 8px 24px rgba(0,0,0,.4)' }}>Read-only access: that change was not saved.</div>}
-        {syncErr && <div style={{ margin: isDesktop ? '12px 40px 0' : '12px 18px 0', padding: '10px 14px', borderRadius: 10, background: C.dnSoft, border: `1px solid ${C.dn}55`, fontSize: 12.5, color: C.t2 }}>{syncErr}</div>}
+        {syncErr && <div style={{ margin: isDesktop ? '12px 40px 0' : '12px 18px 0', padding: '10px 14px', borderRadius: 10, background: C.dnSoft, border: `1px solid ${C.dn}55`, fontSize: 12.5, color: C.t2, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><span style={{ flex: 1 }}>{syncErr}{mode === 'supabase' && families.length === 0 ? ' Your saved families are not lost; they just have not loaded.' : ''}</span>{mode === 'supabase' && reloadData && <button onClick={() => reloadData()} style={{ padding: '6px 14px', borderRadius: 8, border: `1px solid ${C.accent}`, background: C.accentSoft, color: C.t1, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Retry</button>}</div>}
 
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: isDesktop ? '20px 40px 40px' : '16px 18px 40px' }}>
           <div key={tab} style={{ animation: 'fadeIn 0.3s ease' }}>{content}</div>

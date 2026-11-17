@@ -30,9 +30,9 @@ export function newFamily(name = 'New Family') {
   }
 }
 
-// Supabase can reject a brand-new login token with "JWT issued at future" when its API node's clock is a few seconds behind the
+// A brief connection drop ("TypeError: Failed to fetch") is retried the same way. Supabase can reject a brand-new login token with "JWT issued at future" when its API node's clock is a few seconds behind the
 // auth node's. It clears by itself, so retry briefly instead of dropping the save or showing a red banner.
-const CLOCK_SKEW = /JWT issued at future|issued in the future|clock skew/i
+const CLOCK_SKEW = /JWT issued at future|issued in the future|clock skew|failed to fetch|fetch failed|network ?error|load failed/i // also brief connection drops
 async function retrySkew(run, tries = 4) {
   let res = await run()
   for (let i = 1; i < tries && res?.error && CLOCK_SKEW.test(res.error.message || ''); i++) {
@@ -54,23 +54,30 @@ export function StoreProvider({ children }) {
   const saveTimers = useRef({})
 
   // ── initial load (Supabase) ──
+  const loadedRef = useRef(false)
+  const loadAll = useCallback(async () => {
+    try {
+      const [{ data: fams, error: e1 }, { data: sets, error: e2 }] = await Promise.all([
+        retrySkew(() => supabase.from('families').select('id,data').order('updated_at', { ascending: false })),
+        retrySkew(() => supabase.from('settings').select('key,data')),
+      ])
+      if (e1) throw e1; if (e2) throw e2
+      const settings = { ...DEFAULT_SETTINGS, ...(sets?.find((s) => s.key === 'app')?.data || {}) }
+      const families = (fams || []).map((r) => ({ ...r.data, id: r.id }))
+      loadedRef.current = true
+      setState({ families, settings, activeFamilyId: localStorage.getItem(`${LS_KEY}_active`) || families[0]?.id || null })
+      setSyncErr('')
+    } catch (e) { setSyncErr(e.message || 'Load failed') }
+    finally { setReady(true) }
+  }, [])
   useEffect(() => {
     if (!SUPABASE_ENABLED) return
     let cancel = false
-    ;(async () => {
-      try {
-        const [{ data: fams, error: e1 }, { data: sets, error: e2 }] = await Promise.all([
-          retrySkew(() => supabase.from('families').select('id,data').order('updated_at', { ascending: false })),
-          retrySkew(() => supabase.from('settings').select('key,data')),
-        ])
-        if (e1) throw e1; if (e2) throw e2
-        if (cancel) return
-        const settings = { ...DEFAULT_SETTINGS, ...(sets?.find((s) => s.key === 'app')?.data || {}) }
-        const families = (fams || []).map((r) => ({ ...r.data, id: r.id }))
-        setState({ families, settings, activeFamilyId: localStorage.getItem(`${LS_KEY}_active`) || families[0]?.id || null })
-      } catch (e) { setSyncErr(e.message || 'Load failed') }
-      finally { if (!cancel) setReady(true) }
-    })()
+    loadAll()
+    // Come back to the tab after a failed load (laptop woke up, Wi-Fi returned): try again instead of staying empty.
+    const onVis = () => { if (document.visibilityState === 'visible' && !loadedRef.current) loadAll() }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('online', onVis)
     const ch = supabase.channel('families_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'families' }, (payload) => {
       setState((s) => {
         if (payload.eventType === 'DELETE') return { ...s, families: s.families.filter((f) => f.id !== payload.old.id) }
@@ -82,8 +89,8 @@ export function StoreProvider({ children }) {
         return { ...s, families: exists ? s.families.map((f) => (f.id === fam.id ? fam : f)) : [fam, ...s.families] }
       })
     }).subscribe()
-    return () => { cancel = true; supabase.removeChannel(ch) }
-  }, [])
+    return () => { cancel = true; document.removeEventListener('visibilitychange', onVis); window.removeEventListener('online', onVis); supabase.removeChannel(ch) }
+  }, [loadAll])
 
   // ── persistence ──
   useEffect(() => {
@@ -91,8 +98,10 @@ export function StoreProvider({ children }) {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)) } catch (e) { setSyncErr('Local storage is full. Export or delete old families.') }
   }, [state])
 
+  // Never write before the first successful load: a failed load leaves empty defaults in memory, and saving those would overwrite real data.
   const persistFamily = useCallback((fam) => {
     if (!SUPABASE_ENABLED) return
+    if (!loadedRef.current) { setSyncErr('Your data has not loaded yet, so this change was not saved. Click Retry, then repeat the change.'); return }
     clearTimeout(saveTimers.current[fam.id])
     saveTimers.current[fam.id] = setTimeout(async () => {
       const { id, ...data } = fam
@@ -102,6 +111,7 @@ export function StoreProvider({ children }) {
   }, [])
   const persistSettings = useCallback((settings) => {
     if (!SUPABASE_ENABLED) return
+    if (!loadedRef.current) return
     clearTimeout(saveTimers.current.__settings)
     saveTimers.current.__settings = setTimeout(async () => {
       const { error } = await retrySkew(() => supabase.from('settings').upsert({ key: 'app', data: settings }))
@@ -178,7 +188,7 @@ export function StoreProvider({ children }) {
   }), [persistFamily, persistSettings, state])
 
   const family = state.families.find((f) => f.id === state.activeFamilyId) || null
-  const value = { ...state, family, ready, syncErr, ...api, mode: SUPABASE_ENABLED ? 'supabase' : 'local' }
+  const value = { ...state, family, ready, syncErr, reloadData: loadAll, ...api, mode: SUPABASE_ENABLED ? 'supabase' : 'local' }
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }
 
